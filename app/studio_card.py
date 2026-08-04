@@ -1,8 +1,14 @@
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPropertyAnimation,
+    Qt,
+    Signal,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -10,17 +16,20 @@ from PySide6.QtWidgets import (
 
 
 class StudioCard(QFrame):
+    number_changed = Signal(int)
+
     def __init__(self, studio_name: str, number: int = 0) -> None:
         super().__init__()
 
         self._number = max(0, number)
+        self.animation: QPropertyAnimation | None = None
 
         self.setObjectName("studioCard")
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
         )
-        self.setMaximumHeight(430)
+        self.setMaximumHeight(500)
 
         self.name_label = QLabel(studio_name)
         self.name_label.setObjectName("studioName")
@@ -57,7 +66,7 @@ class StudioCard(QFrame):
 
         self.previous_button.clicked.connect(self.previous_number)
         self.next_button.clicked.connect(self.next_number)
-        self.reset_button.clicked.connect(self.reset_number)
+        self.reset_button.clicked.connect(self.confirm_reset)
 
     @property
     def number(self) -> int:
@@ -69,13 +78,40 @@ class StudioCard(QFrame):
     def previous_number(self) -> None:
         self.set_number(max(0, self._number - 1))
 
+    def confirm_reset(self) -> None:
+        if self._number == 0:
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Conferma reset",
+            (
+                f"Vuoi davvero azzerare la coda di "
+                f"{self.name_label.text()}?"
+            ),
+            (
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+            ),
+            QMessageBox.StandardButton.No,
+        )
+
+        if answer == QMessageBox.StandardButton.Yes:
+            self.reset_number()
+
     def reset_number(self) -> None:
         self.set_number(0)
-        
+
     def set_number(self, value: int) -> None:
-        self._number = max(0, value)
+        new_number = max(0, value)
+
+        if new_number == self._number:
+            return
+
+        self._number = new_number
         self.number_label.setText(str(self._number))
         self.animate_number()
+        self.number_changed.emit(self._number)
 
     def set_studio_name(self, studio_name: str) -> None:
         self.name_label.setText(studio_name)
@@ -89,5 +125,7 @@ class StudioCard(QFrame):
         self.animation.setDuration(260)
         self.animation.setStartValue(0.25)
         self.animation.setEndValue(1.0)
-        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.animation.setEasingCurve(
+            QEasingCurve.Type.OutCubic
+        )
         self.animation.start()
