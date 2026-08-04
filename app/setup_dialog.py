@@ -127,6 +127,7 @@ class SetupDialog(QDialog):
             "configured": True,
             "doctor_id": self.doctor_id_combo.currentData(),
             "doctor_name": doctor_name,
+            "queue_active": False,
         }
 
         save_config(config)

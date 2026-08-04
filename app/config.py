@@ -11,6 +11,7 @@ DEFAULT_CONFIG = {
     "configured": False,
     "doctor_id": "",
     "doctor_name": "",
+    "queue_active": False,
 }
 
 
@@ -31,6 +32,7 @@ def load_config() -> dict[str, Any]:
             "configured": bool(data.get("configured", False)),
             "doctor_id": str(data.get("doctor_id", "")),
             "doctor_name": str(data.get("doctor_name", "")).strip(),
+            "queue_active": bool(data.get("queue_active", False)),
         }
 
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -44,6 +46,7 @@ def save_config(config: dict[str, Any]) -> None:
         "configured": bool(config.get("configured", False)),
         "doctor_id": str(config.get("doctor_id", "")),
         "doctor_name": str(config.get("doctor_name", "")).strip(),
+        "queue_active": bool(config.get("queue_active", False)),
     }
 
     temporary_file = CONFIG_FILE.with_suffix(".json.tmp")
