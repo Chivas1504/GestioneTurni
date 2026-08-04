@@ -38,6 +38,10 @@ class StudioCard(QFrame):
         self.next_button.setObjectName("nextButton")
         self.next_button.setMinimumHeight(78)
 
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.setObjectName("resetButton")
+        self.reset_button.setMinimumHeight(52)
+
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(16)
         buttons_layout.addWidget(self.previous_button)
@@ -49,9 +53,11 @@ class StudioCard(QFrame):
         card_layout.addWidget(self.name_label)
         card_layout.addWidget(self.number_label, stretch=1)
         card_layout.addLayout(buttons_layout)
+        card_layout.addWidget(self.reset_button)
 
         self.previous_button.clicked.connect(self.previous_number)
         self.next_button.clicked.connect(self.next_number)
+        self.reset_button.clicked.connect(self.reset_number)
 
     @property
     def number(self) -> int:
@@ -63,6 +69,9 @@ class StudioCard(QFrame):
     def previous_number(self) -> None:
         self.set_number(max(0, self._number - 1))
 
+    def reset_number(self) -> None:
+        self.set_number(0)
+        
     def set_number(self, value: int) -> None:
         self._number = max(0, value)
         self.number_label.setText(str(self._number))

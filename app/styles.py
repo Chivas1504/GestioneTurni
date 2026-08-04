@@ -92,4 +92,19 @@ QPushButton#settingsButton {
 QPushButton#settingsButton:hover {
     background-color: #d2dde6;
 }
+
+QPushButton#resetButton {
+    background-color: #f7e4e2;
+    color: #a43c34;
+    font-size: 18px;
+}
+
+QPushButton#resetButton:hover {
+    background-color: #f1d2cf;
+}
+
+QPushButton#resetButton:pressed {
+    background-color: #e9c0bc;
+}
 """
+
