@@ -5,6 +5,8 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -58,11 +60,26 @@ class MainWindow(QMainWindow):
             )
         )
 
+        self.current_network_role = (
+            "Inizializzazione"
+        )
+        self.current_sync_status = (
+            "Sincronizzazione in corso"
+        )
+        self.current_server_address = ""
+
         self.setWindowTitle(
             "Gestione Turni"
         )
-        self.setMinimumSize(650, 890)
-        self.resize(760, 970)
+
+        self.setMinimumSize(
+            700,
+            760,
+        )
+        self.resize(
+            820,
+            850,
+        )
 
         central_widget = QWidget()
         central_widget.setObjectName(
@@ -72,26 +89,52 @@ class MainWindow(QMainWindow):
             central_widget
         )
 
-        title_label = QLabel(
+        self._build_header()
+        self._build_doctor_card(
+            current_number
+        )
+        self._build_queue_controls()
+        self._build_action_controls()
+        self._build_network_area()
+        self._build_settings_button()
+        self._build_layout(
+            central_widget
+        )
+
+        self.setStyleSheet(
+            APP_STYLE
+            + self._additional_style()
+        )
+
+        self.update_queue_ui()
+        self._update_network_summary()
+        self._connect_controller()
+
+    def _build_header(self) -> None:
+        self.title_label = QLabel(
             "GESTIONE TURNI"
         )
-        title_label.setObjectName(
+        self.title_label.setObjectName(
             "titleLabel"
         )
-        title_label.setAlignment(
+        self.title_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
 
-        subtitle_label = QLabel(
+        self.subtitle_label = QLabel(
             "Sistema di gestione turni"
         )
-        subtitle_label.setObjectName(
+        self.subtitle_label.setObjectName(
             "subtitleLabel"
         )
-        subtitle_label.setAlignment(
+        self.subtitle_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
 
+    def _build_doctor_card(
+        self,
+        current_number: int,
+    ) -> None:
         self.doctor_card = StudioCard(
             self.doctor_name,
             current_number,
@@ -101,95 +144,148 @@ class MainWindow(QMainWindow):
             self.controller.set_number
         )
 
+    def _build_queue_controls(self) -> None:
         self.queue_status_label = QLabel()
         self.queue_status_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
+        self.queue_status_label.setFixedHeight(
+            24
+        )
 
         self.queue_button = QPushButton()
-        self.queue_button.setMinimumHeight(62)
+        self.queue_button.setFixedHeight(
+            56
+        )
         self.queue_button.clicked.connect(
             self.controller.toggle_queue
         )
 
+    def _build_action_controls(self) -> None:
         self.display_button = QPushButton(
-            "Apri display"
+            "🖥  Display sala d'attesa"
         )
         self.display_button.setObjectName(
-            "displayButton"
+            "displayCompactButton"
         )
-        self.display_button.setMinimumHeight(62)
+        self.display_button.setFixedHeight(
+            46
+        )
         self.display_button.clicked.connect(
             self.controller.open_display
         )
 
-        self.network_role_label = QLabel(
-            "Ruolo rete: inizializzazione..."
+        self.dashboard_button = QPushButton(
+            "Dashboard"
         )
-        self.network_role_label.setObjectName(
-            "networkRoleStarting"
+        self.dashboard_button.setObjectName(
+            "dashboardCompactButton"
         )
-        self.network_role_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+        self.dashboard_button.setFixedHeight(
+            46
         )
-
-        self.network_status_label = QLabel(
-            "Ricerca del server in corso..."
-        )
-        self.network_status_label.setObjectName(
-            "networkStatus"
-        )
-        self.network_status_label.setWordWrap(True)
-        self.network_status_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+        self.dashboard_button.clicked.connect(
+            lambda: self.controller.open_dashboard(
+                self
+            )
         )
 
-        self.sync_status_label = QLabel(
-            "Sincronizzazione: "
-            "inizializzazione..."
+        self.history_button = QPushButton(
+            "Storico"
         )
-        self.sync_status_label.setObjectName(
-            "networkStatus"
+        self.history_button.setObjectName(
+            "historyCompactButton"
         )
-        self.sync_status_label.setWordWrap(True)
-        self.sync_status_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+        self.history_button.setFixedHeight(
+            46
+        )
+        self.history_button.clicked.connect(
+            lambda: self.controller.open_history(
+                self
+            )
         )
 
+        self.secondary_buttons_layout = (
+            QHBoxLayout()
+        )
+        self.secondary_buttons_layout.setSpacing(
+            12
+        )
+
+        self.secondary_buttons_layout.addWidget(
+            self.dashboard_button,
+            stretch=1,
+        )
+        self.secondary_buttons_layout.addWidget(
+            self.history_button,
+            stretch=1,
+        )
+
+    def _build_network_area(self) -> None:
+        self.network_separator = QFrame()
+        self.network_separator.setObjectName(
+            "networkSeparator"
+        )
+        self.network_separator.setFrameShape(
+            QFrame.Shape.HLine
+        )
+
+        self.network_summary_label = QLabel()
+        self.network_summary_label.setObjectName(
+            "networkSummary"
+        )
+        self.network_summary_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+        self.network_summary_label.setFixedHeight(
+            26
+        )
+
+    def _build_settings_button(self) -> None:
         self.settings_button = QPushButton(
-            "⚙ Impostazioni"
+            "⚙  Impostazioni"
         )
         self.settings_button.setObjectName(
             "settingsButton"
         )
-        self.settings_button.setMinimumHeight(58)
-
+        self.settings_button.setFixedHeight(
+            46
+        )
         self.settings_button.clicked.connect(
-            lambda: self.controller.open_settings(self)
+            lambda: self.controller.open_settings(
+                self
+            )
         )
 
+    def _build_layout(
+        self,
+        central_widget: QWidget,
+    ) -> None:
         main_layout = QVBoxLayout(
             central_widget
         )
+
         main_layout.setContentsMargins(
-            48,
-            30,
-            48,
-            30,
+            36,
+            18,
+            36,
+            20,
         )
-        main_layout.setSpacing(12)
+        main_layout.setSpacing(
+            8
+        )
 
         main_layout.addWidget(
-            title_label
+            self.title_label
         )
         main_layout.addWidget(
-            subtitle_label
+            self.subtitle_label
         )
-        main_layout.addSpacing(8)
+
+        main_layout.addSpacing(4)
 
         main_layout.addWidget(
-            self.doctor_card,
-            stretch=1,
+            self.doctor_card
         )
 
         main_layout.addWidget(
@@ -201,27 +297,21 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(
             self.display_button
         )
-
-        main_layout.addSpacing(2)
-
-        main_layout.addWidget(
-            self.network_role_label
-        )
-        main_layout.addWidget(
-            self.network_status_label
-        )
-        main_layout.addWidget(
-            self.sync_status_label
+        main_layout.addLayout(
+            self.secondary_buttons_layout
         )
 
+        main_layout.addWidget(
+            self.network_separator
+        )
+        main_layout.addWidget(
+            self.network_summary_label
+        )
         main_layout.addWidget(
             self.settings_button
         )
 
-        self.setStyleSheet(APP_STYLE)
-        self.update_queue_ui()
-
-        self._connect_controller()
+        main_layout.addStretch()
 
     def _connect_controller(self) -> None:
         self.controller.state_changed.connect(
@@ -233,11 +323,11 @@ class MainWindow(QMainWindow):
         )
 
         self.controller.network_status_changed.connect(
-            self.network_status_label.setText
+            self.update_network_status
         )
 
         self.controller.sync_status_changed.connect(
-            self.sync_status_label.setText
+            self.update_sync_status
         )
 
         self.controller.server_address_changed.connect(
@@ -289,7 +379,6 @@ class MainWindow(QMainWindow):
 
         if doctor_name:
             self.doctor_name = doctor_name
-
             self.doctor_card.set_studio_name(
                 doctor_name
             )
@@ -300,9 +389,7 @@ class MainWindow(QMainWindow):
             )
 
         if queue_active != self.queue_active:
-            self.queue_active = (
-                queue_active
-            )
+            self.queue_active = queue_active
             self.update_queue_ui()
 
     def update_queue_ui(self) -> None:
@@ -320,6 +407,7 @@ class MainWindow(QMainWindow):
             self.queue_button.setObjectName(
                 "queueStopButton"
             )
+
         else:
             self.queue_status_label.setText(
                 "● Coda non attiva"
@@ -347,65 +435,88 @@ class MainWindow(QMainWindow):
         role: str,
     ) -> None:
         if role == "server":
-            self.network_role_label.setText(
-                "Ruolo rete: Server"
-            )
-            self.network_role_label.setObjectName(
-                "networkRoleServer"
-            )
+            self.current_network_role = "Server"
         elif role == "client":
-            self.network_role_label.setText(
-                "Ruolo rete: Client"
-            )
-            self.network_role_label.setObjectName(
-                "networkRoleClient"
-            )
+            self.current_network_role = "Client"
         else:
-            self.network_role_label.setText(
-                "Ruolo rete: "
-                "inizializzazione..."
-            )
-            self.network_role_label.setObjectName(
-                "networkRoleStarting"
+            self.current_network_role = (
+                "Inizializzazione"
             )
 
-        self._refresh_widget_style(
-            self.network_role_label
-        )
+        self._update_network_summary()
+
+    def update_network_status(
+        self,
+        status: str,
+    ) -> None:
+        self._update_network_summary()
+
+    def update_sync_status(
+        self,
+        status: str,
+    ) -> None:
+        clean_status = str(status).strip()
+
+        if clean_status:
+            self.current_sync_status = clean_status
+
+        self._update_network_summary()
 
     def update_server_address(
         self,
         server_address: str,
     ) -> None:
-        if not server_address:
-            return
+        self.current_server_address = str(
+            server_address
+        ).strip()
 
-        current_status = (
-            self.network_status_label.text()
+        self._update_network_summary()
+
+    def _update_network_summary(self) -> None:
+        sync_text = self._simplify_sync_status(
+            self.current_sync_status
         )
 
-        address_line = (
-            f"Indirizzo server: "
-            f"{server_address}"
+        parts = [
+            self.current_network_role,
+            sync_text,
+        ]
+
+        if (
+            self.current_network_role == "Client"
+            and self.current_server_address
+        ):
+            parts.append(
+                self.current_server_address
+            )
+
+        self.network_summary_label.setText(
+            "  •  ".join(parts)
         )
 
-        if address_line in current_status:
-            return
+    @staticmethod
+    def _simplify_sync_status(
+        status: str,
+    ) -> str:
+        clean_status = str(status).strip()
+        lowered = clean_status.lower()
 
-        self.network_status_label.setText(
-            f"{current_status}\n"
-            f"{address_line}"
-        )
+        if (
+            "completata" in lowered
+            or "collegato" in lowered
+            or "gestito da questo computer"
+            in lowered
+        ):
+            return "Sincronizzato"
+
+        return "Sincronizzazione in corso"
 
     @staticmethod
     def _safe_number(
         value: Any,
     ) -> int:
         try:
-            return max(
-                0,
-                int(value),
-            )
+            return max(0, int(value))
         except (
             TypeError,
             ValueError,
@@ -416,12 +527,53 @@ class MainWindow(QMainWindow):
     def _refresh_widget_style(
         widget: QWidget,
     ) -> None:
-        widget.style().unpolish(
-            widget
-        )
-        widget.style().polish(
-            widget
-        )
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+        widget.update()
+
+    @staticmethod
+    def _additional_style() -> str:
+        return """
+        QPushButton#displayCompactButton {
+            background-color: #dce8f1;
+            color: #234f6e;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        QPushButton#dashboardCompactButton {
+            background-color: #2c6088;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        QPushButton#historyCompactButton {
+            background-color: #dfe7ee;
+            color: #29485e;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        QFrame#networkSeparator {
+            background-color: #ccd9e3;
+            border: none;
+            min-height: 1px;
+            max-height: 1px;
+        }
+
+        QLabel#networkSummary {
+            color: #176b9c;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        """
 
     def closeEvent(
         self,
