@@ -3,23 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QDialog
 
 from app.config import load_config, save_config
 from app.network import NetworkManager
+from app.settings_dialog import SettingsDialog
 from app.shared_state import SharedState
 from app.storage import load_turns, save_turns
 from app.sync_manager import SyncManager
 
 
 class AppController(QObject):
-    """
-    Coordina tutti i componenti principali.
-
-    MainWindow e DisplayWindow non devono conoscere
-    direttamente rete, sincronizzazione, configurazione
-    o salvataggio.
-    """
-
     state_changed = Signal(object)
 
     network_role_changed = Signal(str)
@@ -27,39 +21,26 @@ class AppController(QObject):
     server_address_changed = Signal(str)
     sync_status_changed = Signal(str)
 
+    settings_changed = Signal(object)
+
     def __init__(self) -> None:
         super().__init__()
 
         self.config = load_config()
 
         self.doctor_id = str(
-            self.config.get(
-                "doctor_id",
-                "",
-            )
+            self.config.get("doctor_id", "")
         )
-
         self.doctor_name = str(
-            self.config.get(
-                "doctor_name",
-                "",
-            )
+            self.config.get("doctor_name", "")
         ).strip()
-
         self.queue_active = bool(
-            self.config.get(
-                "queue_active",
-                False,
-            )
+            self.config.get("queue_active", False)
         )
 
         turns = load_turns()
-
         current_number = self._safe_number(
-            turns.get(
-                self.doctor_id,
-                0,
-            )
+            turns.get(self.doctor_id, 0)
         )
 
         self.shared_state = SharedState(
@@ -126,12 +107,55 @@ class AppController(QObject):
             self.display_window.close()
             self.display_window = None
 
+    def open_settings(self, parent=None) -> None:
+        dialog = SettingsDialog(
+            current_config=self.config,
+            parent=parent,
+        )
+
+        if (
+            dialog.exec()
+            != QDialog.DialogCode.Accepted
+        ):
+            return
+
+        if dialog.saved_settings is None:
+            return
+
+        settings = dialog.saved_settings
+
+        new_name = str(
+            settings.get(
+                "doctor_name",
+                self.doctor_name,
+            )
+        ).strip()
+
+        self.config.update(settings)
+        save_config(self.config)
+
+        if new_name != self.doctor_name:
+            self.doctor_name = new_name
+
+            self.shared_state.update_local(
+                doctor_name=new_name
+            )
+
+        self.settings_changed.emit(
+            dict(self.config)
+        )
+
+        if self.display_window is not None:
+            self.display_window.apply_preferences(
+                show_clock=bool(
+                    self.config.get(
+                        "display_show_clock",
+                        True,
+                    )
+                )
+            )
+
     def open_display(self) -> None:
-        """
-        Apre una sola finestra Display e riutilizza
-        quella già esistente se il pulsante viene premuto
-        più volte.
-        """
         from app.display_window import DisplayWindow
 
         if self.display_window is None:
@@ -143,7 +167,25 @@ class AppController(QObject):
                 self._on_display_destroyed
             )
 
-        self.display_window.show()
+        self.display_window.apply_preferences(
+            show_clock=bool(
+                self.config.get(
+                    "display_show_clock",
+                    True,
+                )
+            )
+        )
+
+        if bool(
+            self.config.get(
+                "display_fullscreen",
+                False,
+            )
+        ):
+            self.display_window.showFullScreen()
+        else:
+            self.display_window.showNormal()
+
         self.display_window.raise_()
         self.display_window.activateWindow()
 
@@ -153,23 +195,15 @@ class AppController(QObject):
     def get_local_state(
         self,
     ) -> dict[str, Any]:
-        return (
-            self.shared_state
-            .get_local_doctor()
-        )
+        return self.shared_state.get_local_doctor()
 
     def get_complete_state(
         self,
     ) -> dict[str, dict[str, Any]]:
         return self.shared_state.get_all()
 
-    def set_number(
-        self,
-        number: int,
-    ) -> None:
-        safe_number = self._safe_number(
-            number
-        )
+    def set_number(self, number: int) -> None:
+        safe_number = self._safe_number(number)
 
         turns = load_turns()
         turns[self.doctor_id] = safe_number
@@ -179,27 +213,9 @@ class AppController(QObject):
             number=safe_number
         )
 
-    def increment_number(self) -> None:
-        self.set_number(
-            self.get_local_number() + 1
-        )
-
-    def decrement_number(self) -> None:
-        self.set_number(
-            max(
-                0,
-                self.get_local_number() - 1,
-            )
-        )
-
-    def reset_number(self) -> None:
-        self.set_number(0)
-
     def get_local_number(self) -> int:
-        local_state = self.get_local_state()
-
         return self._safe_number(
-            local_state.get(
+            self.get_local_state().get(
                 "number",
                 0,
             )
@@ -209,9 +225,7 @@ class AppController(QObject):
         self,
         queue_active: bool,
     ) -> None:
-        self.queue_active = bool(
-            queue_active
-        )
+        self.queue_active = bool(queue_active)
 
         self.config["queue_active"] = (
             self.queue_active
@@ -225,31 +239,6 @@ class AppController(QObject):
     def toggle_queue(self) -> None:
         self.set_queue_active(
             not self.queue_active
-        )
-
-    def update_doctor_name(
-        self,
-        doctor_name: str,
-    ) -> None:
-        clean_name = str(
-            doctor_name
-        ).strip()
-
-        if not clean_name:
-            raise ValueError(
-                "Il nome del medico "
-                "non può essere vuoto."
-            )
-
-        self.doctor_name = clean_name
-
-        self.config["doctor_name"] = (
-            clean_name
-        )
-        save_config(self.config)
-
-        self.shared_state.update_local(
-            doctor_name=clean_name
         )
 
     def _on_shared_state_changed(
@@ -266,10 +255,7 @@ class AppController(QObject):
             self.doctor_id
         )
 
-        if isinstance(
-            local_state,
-            dict,
-        ):
+        if isinstance(local_state, dict):
             self.doctor_name = str(
                 local_state.get(
                     "doctor_name",
@@ -289,16 +275,8 @@ class AppController(QObject):
         )
 
     @staticmethod
-    def _safe_number(
-        value: Any,
-    ) -> int:
+    def _safe_number(value: Any) -> int:
         try:
-            return max(
-                0,
-                int(value),
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
+            return max(0, int(value))
+        except (TypeError, ValueError):
             return 0

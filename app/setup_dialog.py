@@ -67,8 +67,9 @@ class SetupDialog(QDialog):
 
         if forced_doctor_id is not None:
             index = (
-                self.doctor_id_combo
-                .findData(forced_doctor_id)
+                self.doctor_id_combo.findData(
+                    forced_doctor_id
+                )
             )
 
             if index >= 0:
@@ -76,8 +77,6 @@ class SetupDialog(QDialog):
                     index
                 )
 
-            # Durante il test l'identificativo deriva
-            # dal comando di avvio e non può essere cambiato.
             self.doctor_id_combo.setEnabled(False)
 
         self.doctor_name_input = QLineEdit()
@@ -204,6 +203,8 @@ class SetupDialog(QDialog):
             "doctor_id": doctor_id,
             "doctor_name": doctor_name,
             "queue_active": False,
+            "display_fullscreen": False,
+            "display_show_clock": True,
         }
 
         save_config(config)

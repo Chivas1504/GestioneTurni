@@ -164,6 +164,10 @@ class MainWindow(QMainWindow):
         )
         self.settings_button.setMinimumHeight(58)
 
+        self.settings_button.clicked.connect(
+            lambda: self.controller.open_settings(self)
+        )
+
         main_layout = QVBoxLayout(
             central_widget
         )

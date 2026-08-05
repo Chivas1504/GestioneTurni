@@ -13,6 +13,8 @@ DEFAULT_CONFIG = {
     "doctor_id": "",
     "doctor_name": "",
     "queue_active": False,
+    "display_fullscreen": False,
+    "display_show_clock": True,
 }
 
 
@@ -95,6 +97,18 @@ def load_config() -> dict[str, Any]:
             "queue_active": bool(
                 data.get("queue_active", False)
             ),
+            "display_fullscreen": bool(
+                data.get(
+                    "display_fullscreen",
+                    False,
+                )
+            ),
+            "display_show_clock": bool(
+                data.get(
+                    "display_show_clock",
+                    True,
+                )
+            ),
         }
 
     except (
@@ -136,18 +150,28 @@ def save_config(
             "Identificativo medico non valido."
         )
 
-    doctor_name = str(
-        config.get("doctor_name", "")
-    ).strip()
-
     safe_config = {
         "configured": bool(
             config.get("configured", False)
         ),
         "doctor_id": doctor_id,
-        "doctor_name": doctor_name,
+        "doctor_name": str(
+            config.get("doctor_name", "")
+        ).strip(),
         "queue_active": bool(
             config.get("queue_active", False)
+        ),
+        "display_fullscreen": bool(
+            config.get(
+                "display_fullscreen",
+                False,
+            )
+        ),
+        "display_show_clock": bool(
+            config.get(
+                "display_show_clock",
+                True,
+            )
         ),
     }
 
