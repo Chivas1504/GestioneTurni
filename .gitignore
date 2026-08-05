@@ -21,3 +21,4 @@ htmlcov/
 Thumbs.db
 data/
 *.csv
+Installer/
