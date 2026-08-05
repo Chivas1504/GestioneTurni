@@ -13,11 +13,11 @@ from app.sync_manager import SyncManager
 
 class AppController(QObject):
     """
-    Coordina i componenti principali dell'applicazione.
+    Coordina tutti i componenti principali.
 
-    La finestra grafica comunica soltanto con questo controller
-    e non deve conoscere direttamente rete, sincronizzazione,
-    configurazione o salvataggio.
+    MainWindow e DisplayWindow non devono conoscere
+    direttamente rete, sincronizzazione, configurazione
+    o salvataggio.
     """
 
     state_changed = Signal(object)
@@ -33,18 +33,33 @@ class AppController(QObject):
         self.config = load_config()
 
         self.doctor_id = str(
-            self.config.get("doctor_id", "")
+            self.config.get(
+                "doctor_id",
+                "",
+            )
         )
+
         self.doctor_name = str(
-            self.config.get("doctor_name", "")
+            self.config.get(
+                "doctor_name",
+                "",
+            )
         ).strip()
+
         self.queue_active = bool(
-            self.config.get("queue_active", False)
+            self.config.get(
+                "queue_active",
+                False,
+            )
         )
 
         turns = load_turns()
+
         current_number = self._safe_number(
-            turns.get(self.doctor_id, 0)
+            turns.get(
+                self.doctor_id,
+                0,
+            )
         )
 
         self.shared_state = SharedState(
@@ -61,6 +76,8 @@ class AppController(QObject):
         self.network_manager = NetworkManager(
             self.doctor_id
         )
+
+        self.display_window = None
 
         self._connect_components()
 
@@ -98,25 +115,61 @@ class AppController(QObject):
         )
 
     def start(self) -> None:
-        """Avvia discovery, elezione e sincronizzazione di rete."""
         self.network_manager.start()
 
     def close(self) -> None:
-        """Chiude ordinatamente sincronizzazione e rete."""
         self.sync_manager.notify_local_disconnect()
         self.shared_state.mark_local_offline()
         self.network_manager.stop()
 
-    def get_local_state(self) -> dict[str, Any]:
-        return self.shared_state.get_local_doctor()
+        if self.display_window is not None:
+            self.display_window.close()
+            self.display_window = None
+
+    def open_display(self) -> None:
+        """
+        Apre una sola finestra Display e riutilizza
+        quella già esistente se il pulsante viene premuto
+        più volte.
+        """
+        from app.display_window import DisplayWindow
+
+        if self.display_window is None:
+            self.display_window = DisplayWindow(
+                self.shared_state
+            )
+
+            self.display_window.destroyed.connect(
+                self._on_display_destroyed
+            )
+
+        self.display_window.show()
+        self.display_window.raise_()
+        self.display_window.activateWindow()
+
+    def _on_display_destroyed(self) -> None:
+        self.display_window = None
+
+    def get_local_state(
+        self,
+    ) -> dict[str, Any]:
+        return (
+            self.shared_state
+            .get_local_doctor()
+        )
 
     def get_complete_state(
         self,
     ) -> dict[str, dict[str, Any]]:
         return self.shared_state.get_all()
 
-    def set_number(self, number: int) -> None:
-        safe_number = self._safe_number(number)
+    def set_number(
+        self,
+        number: int,
+    ) -> None:
+        safe_number = self._safe_number(
+            number
+        )
 
         turns = load_turns()
         turns[self.doctor_id] = safe_number
@@ -127,12 +180,17 @@ class AppController(QObject):
         )
 
     def increment_number(self) -> None:
-        current_number = self.get_local_number()
-        self.set_number(current_number + 1)
+        self.set_number(
+            self.get_local_number() + 1
+        )
 
     def decrement_number(self) -> None:
-        current_number = self.get_local_number()
-        self.set_number(max(0, current_number - 1))
+        self.set_number(
+            max(
+                0,
+                self.get_local_number() - 1,
+            )
+        )
 
     def reset_number(self) -> None:
         self.set_number(0)
@@ -141,14 +199,19 @@ class AppController(QObject):
         local_state = self.get_local_state()
 
         return self._safe_number(
-            local_state.get("number", 0)
+            local_state.get(
+                "number",
+                0,
+            )
         )
 
     def set_queue_active(
         self,
         queue_active: bool,
     ) -> None:
-        self.queue_active = bool(queue_active)
+        self.queue_active = bool(
+            queue_active
+        )
 
         self.config["queue_active"] = (
             self.queue_active
@@ -168,15 +231,21 @@ class AppController(QObject):
         self,
         doctor_name: str,
     ) -> None:
-        clean_name = str(doctor_name).strip()
+        clean_name = str(
+            doctor_name
+        ).strip()
 
         if not clean_name:
             raise ValueError(
-                "Il nome del medico non può essere vuoto."
+                "Il nome del medico "
+                "non può essere vuoto."
             )
 
         self.doctor_name = clean_name
-        self.config["doctor_name"] = clean_name
+
+        self.config["doctor_name"] = (
+            clean_name
+        )
         save_config(self.config)
 
         self.shared_state.update_local(
@@ -187,14 +256,20 @@ class AppController(QObject):
         self,
         complete_state: object,
     ) -> None:
-        if not isinstance(complete_state, dict):
+        if not isinstance(
+            complete_state,
+            dict,
+        ):
             return
 
         local_state = complete_state.get(
             self.doctor_id
         )
 
-        if isinstance(local_state, dict):
+        if isinstance(
+            local_state,
+            dict,
+        ):
             self.doctor_name = str(
                 local_state.get(
                     "doctor_name",
@@ -209,11 +284,21 @@ class AppController(QObject):
                 )
             )
 
-        self.state_changed.emit(complete_state)
+        self.state_changed.emit(
+            complete_state
+        )
 
     @staticmethod
-    def _safe_number(value: Any) -> int:
+    def _safe_number(
+        value: Any,
+    ) -> int:
         try:
-            return max(0, int(value))
-        except (TypeError, ValueError):
+            return max(
+                0,
+                int(value),
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
             return 0

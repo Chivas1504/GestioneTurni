@@ -31,33 +31,53 @@ class MainWindow(QMainWindow):
         )
 
         self.doctor_id = str(
-            local_state.get("doctor_id", "")
+            local_state.get(
+                "doctor_id",
+                "",
+            )
         )
+
         self.doctor_name = str(
-            local_state.get("doctor_name", "")
+            local_state.get(
+                "doctor_name",
+                "",
+            )
         ).strip()
+
         self.queue_active = bool(
             local_state.get(
                 "queue_active",
                 False,
             )
         )
+
         current_number = self._safe_number(
-            local_state.get("number", 0)
+            local_state.get(
+                "number",
+                0,
+            )
         )
 
-        self.setWindowTitle("Gestione Turni")
-        self.setMinimumSize(650, 830)
-        self.resize(760, 910)
+        self.setWindowTitle(
+            "Gestione Turni"
+        )
+        self.setMinimumSize(650, 890)
+        self.resize(760, 970)
 
         central_widget = QWidget()
         central_widget.setObjectName(
             "centralWidget"
         )
-        self.setCentralWidget(central_widget)
+        self.setCentralWidget(
+            central_widget
+        )
 
-        title_label = QLabel("GESTIONE TURNI")
-        title_label.setObjectName("titleLabel")
+        title_label = QLabel(
+            "GESTIONE TURNI"
+        )
+        title_label.setObjectName(
+            "titleLabel"
+        )
         title_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
@@ -76,6 +96,7 @@ class MainWindow(QMainWindow):
             self.doctor_name,
             current_number,
         )
+
         self.doctor_card.number_changed.connect(
             self.controller.set_number
         )
@@ -89,6 +110,17 @@ class MainWindow(QMainWindow):
         self.queue_button.setMinimumHeight(62)
         self.queue_button.clicked.connect(
             self.controller.toggle_queue
+        )
+
+        self.display_button = QPushButton(
+            "Apri display"
+        )
+        self.display_button.setObjectName(
+            "displayButton"
+        )
+        self.display_button.setMinimumHeight(62)
+        self.display_button.clicked.connect(
+            self.controller.open_display
         )
 
         self.network_role_label = QLabel(
@@ -113,7 +145,8 @@ class MainWindow(QMainWindow):
         )
 
         self.sync_status_label = QLabel(
-            "Sincronizzazione: inizializzazione..."
+            "Sincronizzazione: "
+            "inizializzazione..."
         )
         self.sync_status_label.setObjectName(
             "networkStatus"
@@ -142,8 +175,12 @@ class MainWindow(QMainWindow):
         )
         main_layout.setSpacing(12)
 
-        main_layout.addWidget(title_label)
-        main_layout.addWidget(subtitle_label)
+        main_layout.addWidget(
+            title_label
+        )
+        main_layout.addWidget(
+            subtitle_label
+        )
         main_layout.addSpacing(8)
 
         main_layout.addWidget(
@@ -156,6 +193,9 @@ class MainWindow(QMainWindow):
         )
         main_layout.addWidget(
             self.queue_button
+        )
+        main_layout.addWidget(
+            self.display_button
         )
 
         main_layout.addSpacing(2)
@@ -204,14 +244,22 @@ class MainWindow(QMainWindow):
         self,
         complete_state: object,
     ) -> None:
-        if not isinstance(complete_state, dict):
+        if not isinstance(
+            complete_state,
+            dict,
+        ):
             return
 
-        local_state: Any = complete_state.get(
-            self.doctor_id
+        local_state: Any = (
+            complete_state.get(
+                self.doctor_id
+            )
         )
 
-        if not isinstance(local_state, dict):
+        if not isinstance(
+            local_state,
+            dict,
+        ):
             return
 
         doctor_name = str(
@@ -237,15 +285,20 @@ class MainWindow(QMainWindow):
 
         if doctor_name:
             self.doctor_name = doctor_name
+
             self.doctor_card.set_studio_name(
                 doctor_name
             )
 
         if number != self.doctor_card.number:
-            self.doctor_card.set_number(number)
+            self.doctor_card.set_number(
+                number
+            )
 
         if queue_active != self.queue_active:
-            self.queue_active = queue_active
+            self.queue_active = (
+                queue_active
+            )
             self.update_queue_ui()
 
     def update_queue_ui(self) -> None:
@@ -296,7 +349,6 @@ class MainWindow(QMainWindow):
             self.network_role_label.setObjectName(
                 "networkRoleServer"
             )
-
         elif role == "client":
             self.network_role_label.setText(
                 "Ruolo rete: Client"
@@ -304,10 +356,10 @@ class MainWindow(QMainWindow):
             self.network_role_label.setObjectName(
                 "networkRoleClient"
             )
-
         else:
             self.network_role_label.setText(
-                "Ruolo rete: inizializzazione..."
+                "Ruolo rete: "
+                "inizializzazione..."
             )
             self.network_role_label.setObjectName(
                 "networkRoleStarting"
@@ -329,7 +381,8 @@ class MainWindow(QMainWindow):
         )
 
         address_line = (
-            f"Indirizzo server: {server_address}"
+            f"Indirizzo server: "
+            f"{server_address}"
         )
 
         if address_line in current_status:
@@ -341,18 +394,30 @@ class MainWindow(QMainWindow):
         )
 
     @staticmethod
-    def _safe_number(value: Any) -> int:
+    def _safe_number(
+        value: Any,
+    ) -> int:
         try:
-            return max(0, int(value))
-        except (TypeError, ValueError):
+            return max(
+                0,
+                int(value),
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
             return 0
 
     @staticmethod
     def _refresh_widget_style(
         widget: QWidget,
     ) -> None:
-        widget.style().unpolish(widget)
-        widget.style().polish(widget)
+        widget.style().unpolish(
+            widget
+        )
+        widget.style().polish(
+            widget
+        )
 
     def closeEvent(
         self,
