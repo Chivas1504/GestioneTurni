@@ -73,16 +73,6 @@ QPushButton#nextButton:pressed {
     background-color: #146843;
 }
 
-QPushButton#displayButton {
-    background-color: #218b5d;
-    color: white;
-    min-width: 240px;
-}
-
-QPushButton#displayButton:hover {
-    background-color: #19794f;
-}
-
 QPushButton#settingsButton {
     background-color: #dfe7ee;
     color: #334b5d;
@@ -106,5 +96,67 @@ QPushButton#resetButton:hover {
 QPushButton#resetButton:pressed {
     background-color: #e9c0bc;
 }
-"""
 
+QLabel#queueStatusActive {
+    color: #218b5d;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+QLabel#queueStatusInactive {
+    color: #7b8b98;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+QPushButton#queueStartButton {
+    background-color: #218b5d;
+    color: white;
+    min-height: 62px;
+}
+
+QPushButton#queueStartButton:hover {
+    background-color: #19794f;
+}
+
+QPushButton#queueStartButton:pressed {
+    background-color: #146843;
+}
+
+QPushButton#queueStopButton {
+    background-color: #b8473f;
+    color: white;
+    min-height: 62px;
+}
+
+QPushButton#queueStopButton:hover {
+    background-color: #9f3933;
+}
+
+QPushButton#queueStopButton:pressed {
+    background-color: #87302b;
+}
+
+QLabel#networkRoleStarting {
+    color: #7b8b98;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+QLabel#networkRoleServer {
+    color: #176ea6;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+QLabel#networkRoleClient {
+    color: #7a5ba6;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+QLabel#networkStatus {
+    color: #60758a;
+    font-size: 14px;
+}
+"""
