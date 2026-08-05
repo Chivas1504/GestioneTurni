@@ -19,10 +19,6 @@ from app.sync_manager import SyncManager
 
 
 class AppController(QObject):
-    """
-    Coordina tutti i componenti principali
-    dell'applicazione.
-    """
 
     state_changed = Signal(object)
 
@@ -129,10 +125,6 @@ class AppController(QObject):
         self.network_manager.start()
 
     def close(self) -> None:
-        """
-        Chiude ordinatamente rete, sincronizzazione
-        e finestre secondarie.
-        """
         self.sync_manager.notify_local_disconnect()
         self.shared_state.mark_local_offline()
         self.network_manager.stop()
@@ -153,9 +145,6 @@ class AppController(QObject):
         self,
         parent=None,
     ) -> None:
-        """
-        Apre una sola finestra Dashboard personale.
-        """
         from app.dashboard_dialog import DashboardDialog
 
         if self.dashboard_window is None:
@@ -181,9 +170,6 @@ class AppController(QObject):
         self,
         parent=None,
     ) -> None:
-        """
-        Apre una sola finestra dello storico personale.
-        """
         from app.history_dialog import HistoryDialog
 
         if self.history_window is None:

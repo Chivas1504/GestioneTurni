@@ -30,7 +30,7 @@ class NetworkManager(QObject):
     status_changed = Signal(str)
     server_address_changed = Signal(str)
 
-    # Invia a SyncManager un messaggio ricevuto dalla rete.
+
     message_received = Signal(object)
 
     def __init__(
@@ -55,8 +55,7 @@ class NetworkManager(QObject):
         self._discovery_socket: socket.socket | None = None
         self._heartbeat_socket: socket.socket | None = None
 
-        # Contiene i messaggi preparati da SyncManager
-        # che devono essere inviati all'altro computer.
+
         self._outbox: list[dict[str, Any]] = []
 
     @property
@@ -93,18 +92,14 @@ class NetworkManager(QObject):
         self,
         message: object,
     ) -> None:
-        """
-        Riceve un messaggio da SyncManager e lo inserisce
-        nella coda dei messaggi da inviare.
-        """
         if not isinstance(message, dict):
             return
 
         safe_message = dict(message)
 
         with self._outbox_lock:
-            # Lo stato completo sostituisce eventuali stati
-            # completi precedenti non ancora inviati.
+
+
             if safe_message.get("type") == "complete_state":
                 self._outbox = [
                     queued_message
@@ -132,8 +127,7 @@ class NetworkManager(QObject):
         if self._stop_event.is_set():
             return
 
-        # Medico 1 ha una leggera precedenza soltanto
-        # quando entrambi partono quasi nello stesso momento.
+
         base_delay = (
             0.25
             if self.doctor_id == "doctor1"
@@ -594,8 +588,8 @@ class NetworkManager(QObject):
                 return response
 
         except OSError:
-            # Se l'invio fallisce, rimettiamo i messaggi
-            # nella coda per il tentativo successivo.
+
+
             outgoing_messages = request.get(
                 "messages",
                 [],

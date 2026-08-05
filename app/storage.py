@@ -32,15 +32,6 @@ _active_storage_profile: str | None = None
 def set_active_storage_profile(
     profile: str | None,
 ) -> None:
-    """
-    Imposta il profilo usato per il salvataggio dei numeri.
-
-    Durante i test:
-    - doctor1 usa turns_doctor1.json;
-    - doctor2 usa turns_doctor2.json.
-
-    Senza profilo esplicito viene usato turns.json.
-    """
     global _active_storage_profile
 
     if profile not in {
@@ -60,22 +51,14 @@ def get_active_storage_profile() -> str | None:
 
 
 def get_turns_file() -> Path:
-    """Restituisce il file JSON utilizzato dal profilo attivo."""
     return resolve_turns_file(_active_storage_profile)
 
 
 def get_turns_lock_file() -> Path:
-    """Restituisce il file di lock relativo al profilo attivo."""
     return resolve_turns_lock_file(_active_storage_profile)
 
 
 def load_turns() -> dict[str, int]:
-    """
-    Carica i numeri salvati.
-
-    Se il file non esiste o è temporaneamente illeggibile,
-    restituisce una struttura valida con entrambi i medici.
-    """
     QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -98,14 +81,6 @@ def load_turns() -> dict[str, int]:
 def save_turns(
     turns: dict[str, Any],
 ) -> None:
-    """
-    Salva i numeri in modo sicuro.
-
-    La scrittura è protetta da:
-    - lock tra processi;
-    - file temporaneo univoco;
-    - tentativi automatici in caso di blocco di OneDrive.
-    """
     QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -122,12 +97,6 @@ def save_turns(
 
 
 def _load_turns_unlocked() -> dict[str, int]:
-    """
-    Legge il file senza acquisire il lock.
-
-    Deve essere chiamato soltanto quando il chiamante
-    possiede già il lock.
-    """
     turns_file = get_turns_file()
 
     if not turns_file.exists():
@@ -179,12 +148,6 @@ def _load_turns_unlocked() -> dict[str, int]:
 def _save_turns_unlocked(
     turns: dict[str, int],
 ) -> None:
-    """
-    Scrive il file senza acquisire il lock.
-
-    Deve essere chiamato soltanto quando il chiamante
-    possiede già il lock.
-    """
     turns_file = get_turns_file()
 
     temporary_file = (
@@ -231,12 +194,6 @@ def _replace_with_retries(
     source: Path,
     destination: Path,
 ) -> None:
-    """
-    Sostituisce il file con più tentativi.
-
-    OneDrive, Windows Defender o l'indicizzazione possono
-    bloccare momentaneamente il file di destinazione.
-    """
     last_error: OSError | None = None
 
     for attempt in range(
@@ -271,10 +228,6 @@ def _replace_with_retries(
 
 @contextmanager
 def _turns_file_lock() -> Iterator[None]:
-    """
-    Impedisce a due processi di modificare contemporaneamente
-    lo stesso file dei turni.
-    """
     QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -349,9 +302,6 @@ def _turns_file_lock() -> Iterator[None]:
 def _remove_stale_lock_if_needed(
     lock_file: Path,
 ) -> None:
-    """
-    Elimina un lock rimasto dopo una chiusura anomala.
-    """
     try:
         lock_age = (
             time.time()
@@ -379,12 +329,6 @@ def _remove_stale_lock_if_needed(
 def _normalise_turns(
     turns: dict[str, Any],
 ) -> dict[str, int]:
-    """
-    Converte i valori in numeri interi non negativi.
-
-    Mantiene sempre entrambe le chiavi, anche se il profilo
-    locale usa normalmente soltanto una di esse.
-    """
     return {
         "doctor1": _safe_number(
             turns.get(

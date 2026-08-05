@@ -13,18 +13,6 @@ from PySide6.QtWidgets import (
 
 
 class StudioCard(QFrame):
-    """
-    Card principale del medico.
-
-    Mostra:
-    - nome del medico;
-    - numero attualmente chiamato;
-    - pulsanti -1 e +1;
-    - pulsante Reset con conferma.
-
-    Il segnale number_changed viene emesso soltanto
-    quando il numero viene modificato dall'utente.
-    """
 
     number_changed = Signal(int)
 
@@ -166,9 +154,6 @@ class StudioCard(QFrame):
         )
 
     def confirm_reset(self) -> None:
-        """
-        Chiede conferma prima di azzerare il numero.
-        """
         if self._number == 0:
             return
 
@@ -198,10 +183,6 @@ class StudioCard(QFrame):
         self,
         number: int,
     ) -> None:
-        """
-        Aggiorna la card da codice senza emettere
-        number_changed, evitando cicli di sincronizzazione.
-        """
         safe_number = self._safe_number(number)
 
         if safe_number == self._number:

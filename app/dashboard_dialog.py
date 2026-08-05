@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -18,10 +16,6 @@ from app.history_statistics import get_personal_dashboard
 
 
 class StatisticCard(QFrame):
-    """
-    Piccolo riquadro riutilizzabile per mostrare
-    una statistica principale della dashboard.
-    """
 
     def __init__(
         self,
@@ -98,16 +92,6 @@ class StatisticCard(QFrame):
 
 
 class DashboardDialog(QDialog):
-    """
-    Dashboard personale del medico locale.
-
-    Mostra:
-    - stato attuale della coda;
-    - statistiche di oggi;
-    - statistiche del mese;
-    - ultima sessione completata;
-    - accesso allo storico completo.
-    """
 
     def __init__(
         self,

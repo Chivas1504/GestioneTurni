@@ -25,13 +25,6 @@ FILE_REPLACE_RETRY_SECONDS = 0.10
 
 
 def load_history() -> list[dict[str, Any]]:
-    """
-    Carica e normalizza tutto lo storico.
-
-    L'accesso è protetto da un lock condiviso tra processi,
-    così due istanze dell'applicazione non leggono il file
-    mentre un'altra lo sta sostituendo.
-    """
     HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -54,15 +47,6 @@ def load_history() -> list[dict[str, Any]]:
 def save_history(
     history: list[dict[str, Any]],
 ) -> None:
-    """
-    Salva lo storico in modo sicuro.
-
-    Usa:
-    - un lock condiviso tra processi;
-    - un file temporaneo univoco;
-    - più tentativi di sostituzione per tollerare
-      i blocchi temporanei causati da Windows o OneDrive.
-    """
     HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -78,12 +62,6 @@ def start_daily_queue(
     doctor_name: str,
     starting_number: int,
 ) -> dict[str, Any]:
-    """
-    Apre una nuova sessione giornaliera.
-
-    Se esiste già una sessione aperta per lo stesso medico
-    nella giornata corrente, aggiorna e riutilizza quella.
-    """
     _validate_doctor_id(doctor_id)
 
     clean_name = _clean_doctor_name(
@@ -152,13 +130,6 @@ def update_daily_queue(
     doctor_name: str,
     current_number: int,
 ) -> dict[str, Any]:
-    """
-    Aggiorna il numero raggiunto nella sessione aperta.
-
-    Tutta l'operazione lettura-modifica-scrittura avviene
-    mantenendo il lock, evitando che un altro processo
-    sovrascriva gli aggiornamenti.
-    """
     _validate_doctor_id(doctor_id)
 
     clean_name = _clean_doctor_name(
@@ -219,9 +190,6 @@ def end_daily_queue(
     doctor_name: str,
     final_number: int,
 ) -> dict[str, Any] | None:
-    """
-    Chiude la sessione aperta e calcola le statistiche.
-    """
     _validate_doctor_id(doctor_id)
 
     clean_name = _clean_doctor_name(
@@ -262,10 +230,6 @@ def end_daily_queue(
 def get_history_for_doctor(
     doctor_id: str,
 ) -> list[dict[str, Any]]:
-    """
-    Restituisce esclusivamente lo storico del medico
-    richiesto, dal più recente al più vecchio.
-    """
     _validate_doctor_id(
         doctor_id
     )
@@ -300,10 +264,6 @@ def get_history_for_doctor(
 def clear_history_for_doctor(
     doctor_id: str,
 ) -> None:
-    """
-    Cancella soltanto lo storico del medico indicato.
-    I dati dell'altro medico vengono conservati.
-    """
     _validate_doctor_id(
         doctor_id
     )
@@ -330,12 +290,6 @@ def clear_history_for_doctor(
 
 def _load_history_unlocked(
 ) -> list[dict[str, Any]]:
-    """
-    Legge il file senza acquisire il lock.
-
-    Deve essere chiamata soltanto quando il chiamante
-    possiede già il lock oppure durante operazioni isolate.
-    """
     if not HISTORY_FILE.exists():
         return []
 
@@ -400,12 +354,6 @@ def _load_history_unlocked(
 def _save_history_unlocked(
     history: list[dict[str, Any]],
 ) -> None:
-    """
-    Salva senza acquisire il lock.
-
-    Deve essere chiamata esclusivamente mentre il lock
-    dello storico è già attivo.
-    """
     safe_history: list[
         dict[str, Any]
     ] = []
@@ -469,12 +417,6 @@ def _replace_with_retries(
     source: Path,
     destination: Path,
 ) -> None:
-    """
-    Sostituisce il file effettuando più tentativi.
-
-    OneDrive, antivirus o indicizzazione di Windows possono
-    mantenere il file occupato per pochi millisecondi.
-    """
     last_error: OSError | None = None
 
     for attempt in range(
@@ -510,13 +452,6 @@ def _replace_with_retries(
 @contextmanager
 def _history_file_lock(
 ) -> Iterator[None]:
-    """
-    Lock semplice tra processi basato sulla creazione
-    esclusiva di un file.
-
-    Solo un'istanza alla volta può eseguire operazioni
-    di lettura-modifica-scrittura sullo storico.
-    """
     HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -589,12 +524,6 @@ def _history_file_lock(
 
 def _remove_stale_lock_if_needed(
 ) -> None:
-    """
-    Rimuove un lock rimasto dopo una chiusura anomala.
-
-    Un lock più vecchio del timeout viene considerato
-    abbandonato.
-    """
     try:
         lock_age = (
             time.time()

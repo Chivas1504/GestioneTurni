@@ -15,9 +15,6 @@ DOCTOR_IDS = (
 
 
 class MessageType(str, Enum):
-    """
-    Tipi di messaggio applicativi supportati.
-    """
 
     DOCTOR_UPDATE = "doctor_update"
     COMPLETE_STATE = "complete_state"

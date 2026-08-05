@@ -12,15 +12,6 @@ DOCTOR_IDS = ("doctor1", "doctor2")
 
 
 class SharedState(QObject):
-    """
-    Mantiene una copia coerente dello stato dei due medici.
-
-    Questo componente non comunica direttamente sulla rete:
-    - la GUI aggiorna lo stato locale;
-    - NetworkManager legge e invia lo stato;
-    - NetworkManager applica gli aggiornamenti ricevuti;
-    - la GUI riceve il segnale state_changed.
-    """
 
     state_changed = Signal(object)
     local_state_changed = Signal(object)
@@ -61,7 +52,6 @@ class SharedState(QObject):
         )
 
     def get_all(self) -> dict[str, dict[str, Any]]:
-        """Restituisce una copia completa dello stato condiviso."""
         with self._lock:
             return deepcopy(self._state)
 
@@ -69,14 +59,12 @@ class SharedState(QObject):
         self,
         doctor_id: str,
     ) -> dict[str, Any]:
-        """Restituisce una copia dello stato di un medico."""
         self._validate_doctor_id(doctor_id)
 
         with self._lock:
             return deepcopy(self._state[doctor_id])
 
     def get_local_doctor(self) -> dict[str, Any]:
-        """Restituisce lo stato del medico di questo computer."""
         return self.get_doctor(self.local_doctor_id)
 
     def update_local(
@@ -87,13 +75,6 @@ class SharedState(QObject):
         queue_active: bool | None = None,
         online: bool | None = None,
     ) -> None:
-        """
-        Aggiorna lo stato del medico locale.
-
-        Emette:
-        - local_state_changed: serve alla rete per inviare l’update;
-        - state_changed: serve alla GUI e agli altri componenti.
-        """
         with self._lock:
             current = self._state[self.local_doctor_id].copy()
 
@@ -137,11 +118,6 @@ class SharedState(QObject):
         self,
         doctor_state: dict[str, Any],
     ) -> None:
-        """
-        Applica lo stato ricevuto dalla rete per un singolo medico.
-
-        Non sovrascrive il medico locale con dati più vecchi.
-        """
         doctor_id = str(
             doctor_state.get("doctor_id", "")
         )
@@ -175,12 +151,6 @@ class SharedState(QObject):
         self,
         complete_state: dict[str, Any],
     ) -> None:
-        """
-        Applica una copia completa ricevuta dal Server.
-
-        Per ogni medico viene mantenuta la versione con
-        updated_at più recente.
-        """
         changed = False
 
         with self._lock:
@@ -221,7 +191,6 @@ class SharedState(QObject):
         self,
         doctor_id: str,
     ) -> None:
-        """Segna un medico come non connesso."""
         self._validate_doctor_id(doctor_id)
 
         with self._lock:
@@ -245,7 +214,6 @@ class SharedState(QObject):
         self.state_changed.emit(complete_copy)
 
     def mark_local_offline(self) -> None:
-        """Segna come offline il medico di questo computer."""
         self.update_local(online=False)
 
     @staticmethod

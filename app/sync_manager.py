@@ -17,10 +17,6 @@ from app.shared_state import SharedState
 
 
 class SyncManager(QObject):
-    """
-    Collega SharedState e NetworkManager usando
-    esclusivamente il protocollo applicativo versionato.
-    """
 
     outbound_message = Signal(object)
     sync_status_changed = Signal(str)
@@ -64,8 +60,7 @@ class SyncManager(QObject):
                 "gestito da questo computer."
             )
 
-            # Se questo PC è diventato Server dopo un failover,
-            # pubblica la copia completa già disponibile.
+
             self._emit_complete_state()
 
         elif role == "client":
@@ -73,10 +68,10 @@ class SyncManager(QObject):
                 "Sincronizzazione: collegato al Server."
             )
 
-            # Comunica subito il proprio stato locale.
+
             self._emit_local_state()
 
-            # Richiede la copia completa dei dati condivisi.
+
             self.request_full_synchronisation()
 
         else:
@@ -88,10 +83,6 @@ class SyncManager(QObject):
         self,
         message: object,
     ) -> None:
-        """
-        Valida e gestisce un messaggio ricevuto dalla rete.
-        I messaggi estranei o malformati vengono ignorati.
-        """
         message_type = get_message_type(message)
         payload = get_payload(message)
 
@@ -124,11 +115,6 @@ class SyncManager(QObject):
         self.outbound_message.emit(message)
 
     def notify_local_disconnect(self) -> None:
-        """
-        Invia un messaggio di disconnessione volontaria.
-
-        Deve essere chiamato prima della chiusura del programma.
-        """
         if self._network_role not in {
             "server",
             "client",
@@ -165,8 +151,8 @@ class SyncManager(QObject):
             self.outbound_message.emit(message)
 
         elif self._network_role == "server":
-            # Il dato locale è già dentro SharedState.
-            # Il Server distribuisce quindi lo stato completo.
+
+
             self._emit_complete_state()
 
     def _handle_doctor_update(

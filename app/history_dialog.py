@@ -28,10 +28,6 @@ from app.history_storage import (
 
 
 class SortableTableItem(QTableWidgetItem):
-    """
-    Elemento della tabella con un valore separato
-    utilizzato per l'ordinamento.
-    """
 
     def __init__(
         self,

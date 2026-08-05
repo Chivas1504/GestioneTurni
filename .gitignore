@@ -1,39 +1,23 @@
-# Ambiente virtuale
 .venv/
 venv/
 env/
-
-# Cache Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# PyInstaller
 build/
 dist/
-*.spec.bak
-
-# IDE
 .vscode/
 .idea/
-
-# Test e strumenti
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# File temporanei
 *.tmp
 *.lock
 *.log
 ~$*
 .DS_Store
 Thumbs.db
-
-# Dati locali della vecchia versione
 data/
-
-# File esportati
 *.csv

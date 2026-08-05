@@ -11,13 +11,6 @@ def get_personal_dashboard(
     current_number: int,
     queue_active: bool,
 ) -> dict[str, Any]:
-    """
-    Costruisce tutti i dati necessari alla dashboard personale.
-
-    Lo storico viene già filtrato dal metodo
-    get_history_for_doctor(), quindi vengono utilizzate
-    esclusivamente le sessioni del medico locale.
-    """
     history = get_history_for_doctor(doctor_id)
 
     today = date.today()
