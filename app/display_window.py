@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
 from app.shared_state import SharedState
 
 
+from app.resources import app_icon
+
 class DoctorDisplayCard(QFrame):
     def __init__(
         self,
@@ -104,6 +106,8 @@ class DisplayWindow(QMainWindow):
         shared_state: SharedState,
     ) -> None:
         super().__init__()
+
+        self.setWindowIcon(app_icon())
 
         self.shared_state = shared_state
         self.doctor_cards: dict[str, DoctorDisplayCard] = {}

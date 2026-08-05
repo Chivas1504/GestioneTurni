@@ -13,12 +13,16 @@ from PySide6.QtWidgets import (
 from app.config import save_config
 
 
+from app.resources import app_icon
+
 class SetupDialog(QDialog):
     def __init__(
         self,
         forced_doctor_id: str | None = None,
     ) -> None:
         super().__init__()
+
+        self.setWindowIcon(app_icon())
 
         self.forced_doctor_id = (
             forced_doctor_id

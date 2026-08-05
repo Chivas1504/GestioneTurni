@@ -1,10 +1,14 @@
+import logging
 import sys
 
 from PySide6.QtWidgets import QApplication, QDialog
 
 from app.config import load_config, set_active_profile
 from app.controller import AppController
+from app.logging_config import configure_logging, install_exception_hook
 from app.paths import ensure_data_directories, migrate_legacy_data
+from app.resources import app_icon
+from app.version import APP_NAME, APP_VERSION
 from app.profile_selection_dialog import ProfileSelectionDialog
 from app.setup_dialog import SetupDialog
 from app.storage import set_active_storage_profile
@@ -93,9 +97,16 @@ def choose_profile() -> str | None:
 
 def main() -> None:
     ensure_data_directories()
+    configure_logging()
+    install_exception_hook()
+
+    logging.info("Avvio %s %s", APP_NAME, APP_VERSION)
     migrate_legacy_data()
 
     app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
+    app.setWindowIcon(app_icon())
 
     profile = read_profile_argument()
 
@@ -127,7 +138,10 @@ def main() -> None:
     window.show()
     controller.start()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    logging.info("Chiusura applicazione con codice %s", exit_code)
+    logging.shutdown()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

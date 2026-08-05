@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 from app.history_statistics import get_personal_dashboard
 
 
+from app.resources import app_icon
+
 class StatisticCard(QFrame):
 
     def __init__(
@@ -100,6 +102,8 @@ class DashboardDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
+
+        self.setWindowIcon(app_icon())
 
         self.controller = controller
 

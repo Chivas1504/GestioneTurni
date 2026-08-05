@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from PySide6.QtCore import QObject, Signal
@@ -16,6 +18,9 @@ from app.settings_dialog import SettingsDialog
 from app.shared_state import SharedState
 from app.storage import load_turns, save_turns
 from app.sync_manager import SyncManager
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class AppController(QObject):
@@ -122,9 +127,11 @@ class AppController(QObject):
         )
 
     def start(self) -> None:
+        LOGGER.info("Avvio rete per il profilo %s", self.doctor_id)
         self.network_manager.start()
 
     def close(self) -> None:
+        LOGGER.info("Chiusura controller per il profilo %s", self.doctor_id)
         self.sync_manager.notify_local_disconnect()
         self.shared_state.mark_local_offline()
         self.network_manager.stop()
@@ -328,6 +335,11 @@ class AppController(QObject):
         safe_number = self._safe_number(
             number
         )
+        LOGGER.info(
+            "Aggiornamento numero %s: %s",
+            self.doctor_id,
+            safe_number,
+        )
 
         turns = load_turns()
         turns[self.doctor_id] = safe_number
@@ -368,6 +380,12 @@ class AppController(QObject):
 
         if new_queue_active == self.queue_active:
             return
+
+        LOGGER.info(
+            "Stato coda %s: %s",
+            self.doctor_id,
+            "attiva" if new_queue_active else "terminata",
+        )
 
         current_number = (
             self.get_local_number()

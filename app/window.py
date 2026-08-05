@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -14,7 +14,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.about_dialog import AboutDialog
 from app.controller import AppController
+from app.resources import app_icon
+from app.version import APP_NAME, APP_VERSION
 from app.studio_card import StudioCard
 from app.styles import APP_STYLE
 
@@ -69,8 +72,9 @@ class MainWindow(QMainWindow):
         self.current_server_address = ""
 
         self.setWindowTitle(
-            "Gestione Turni"
+            f"{APP_NAME} {APP_VERSION} - {self.doctor_name}"
         )
+        self.setWindowIcon(app_icon())
 
         self.setMinimumSize(
             700,
@@ -97,6 +101,7 @@ class MainWindow(QMainWindow):
         self._build_action_controls()
         self._build_network_area()
         self._build_settings_button()
+        self._build_shortcuts()
         self._build_layout(
             central_widget
         )
@@ -248,14 +253,60 @@ class MainWindow(QMainWindow):
         self.settings_button.setObjectName(
             "settingsButton"
         )
-        self.settings_button.setFixedHeight(
-            46
-        )
+        self.settings_button.setFixedHeight(46)
         self.settings_button.clicked.connect(
-            lambda: self.controller.open_settings(
-                self
-            )
+            lambda: self.controller.open_settings(self)
         )
+
+        self.about_button = QPushButton(
+            f"Informazioni · v{APP_VERSION}"
+        )
+        self.about_button.setObjectName(
+            "aboutButton"
+        )
+        self.about_button.setFixedHeight(46)
+        self.about_button.clicked.connect(
+            self.open_about
+        )
+
+        self.bottom_buttons_layout = QHBoxLayout()
+        self.bottom_buttons_layout.setSpacing(12)
+        self.bottom_buttons_layout.addWidget(
+            self.settings_button,
+            stretch=2,
+        )
+        self.bottom_buttons_layout.addWidget(
+            self.about_button,
+            stretch=1,
+        )
+
+    def _build_shortcuts(self) -> None:
+        self.dashboard_shortcut = QShortcut(
+            QKeySequence("Ctrl+D"),
+            self,
+        )
+        self.dashboard_shortcut.activated.connect(
+            lambda: self.controller.open_dashboard(self)
+        )
+
+        self.history_shortcut = QShortcut(
+            QKeySequence("Ctrl+H"),
+            self,
+        )
+        self.history_shortcut.activated.connect(
+            lambda: self.controller.open_history(self)
+        )
+
+        self.settings_shortcut = QShortcut(
+            QKeySequence("Ctrl+S"),
+            self,
+        )
+        self.settings_shortcut.activated.connect(
+            lambda: self.controller.open_settings(self)
+        )
+
+    def open_about(self) -> None:
+        AboutDialog(self).exec()
 
     def _build_layout(
         self,
@@ -307,8 +358,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(
             self.network_summary_label
         )
-        main_layout.addWidget(
-            self.settings_button
+        main_layout.addLayout(
+            self.bottom_buttons_layout
         )
 
         main_layout.addStretch()
@@ -379,6 +430,9 @@ class MainWindow(QMainWindow):
 
         if doctor_name:
             self.doctor_name = doctor_name
+            self.setWindowTitle(
+                f"{APP_NAME} {APP_VERSION} - {doctor_name}"
+            )
             self.doctor_card.set_studio_name(
                 doctor_name
             )
@@ -566,6 +620,19 @@ class MainWindow(QMainWindow):
             border: none;
             min-height: 1px;
             max-height: 1px;
+        }
+
+        QPushButton#aboutButton {
+            background-color: #dfe7ee;
+            color: #29485e;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        QPushButton#aboutButton:hover {
+            background-color: #d2dde6;
         }
 
         QLabel#networkSummary {

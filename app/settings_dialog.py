@@ -15,6 +15,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app.about_dialog import AboutDialog
+from app.resources import app_icon
+from app.version import APP_VERSION
+
 
 class SettingsDialog(QDialog):
     def __init__(
@@ -27,9 +31,10 @@ class SettingsDialog(QDialog):
         self.saved_settings: dict[str, Any] | None = None
 
         self.setWindowTitle("Impostazioni")
+        self.setWindowIcon(app_icon())
         self.setModal(True)
-        self.setMinimumSize(540, 430)
-        self.resize(580, 470)
+        self.setMinimumSize(540, 470)
+        self.resize(580, 510)
 
         title_label = QLabel("Impostazioni")
         title_label.setObjectName("settingsTitle")
@@ -102,6 +107,27 @@ class SettingsDialog(QDialog):
             )
         )
 
+        self.version_label = QLabel(
+            f"Gestione Turni · Versione {APP_VERSION}"
+        )
+        self.version_label.setObjectName(
+            "settingsVersion"
+        )
+        self.version_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.about_button = QPushButton(
+            "Informazioni"
+        )
+        self.about_button.setObjectName(
+            "settingsAboutButton"
+        )
+        self.about_button.setMinimumHeight(50)
+        self.about_button.clicked.connect(
+            lambda: AboutDialog(self).exec()
+        )
+
         self.cancel_button = QPushButton("Annulla")
         self.cancel_button.setObjectName(
             "settingsCancelButton"
@@ -124,6 +150,9 @@ class SettingsDialog(QDialog):
 
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(14)
+        buttons_layout.addWidget(
+            self.about_button
+        )
         buttons_layout.addStretch()
         buttons_layout.addWidget(
             self.cancel_button
@@ -158,6 +187,7 @@ class SettingsDialog(QDialog):
         )
 
         main_layout.addStretch()
+        main_layout.addWidget(self.version_label)
         main_layout.addLayout(buttons_layout)
 
         self.setStyleSheet(
@@ -175,6 +205,12 @@ class SettingsDialog(QDialog):
             QLabel#settingsDescription {
                 color: #60758a;
                 font-size: 15px;
+            }
+
+            QLabel#settingsVersion {
+                color: #60758a;
+                font-size: 13px;
+                font-weight: 700;
             }
 
             QLabel#settingsSection {
@@ -215,6 +251,15 @@ class SettingsDialog(QDialog):
                 padding: 10px 22px;
                 font-size: 16px;
                 font-weight: 700;
+            }
+
+            QPushButton#settingsAboutButton {
+                background-color: #dce8f1;
+                color: #234f6e;
+            }
+
+            QPushButton#settingsAboutButton:hover {
+                background-color: #cfdee9;
             }
 
             QPushButton#settingsCancelButton {

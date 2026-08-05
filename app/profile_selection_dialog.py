@@ -10,6 +10,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app.resources import app_icon
+from app.version import APP_NAME, APP_VERSION
+
 
 class ProfileSelectionDialog(QDialog):
     def __init__(
@@ -22,8 +25,9 @@ class ProfileSelectionDialog(QDialog):
         self.selected_profile: str | None = None
 
         self.setWindowTitle(
-            "Seleziona medico"
+            f"Seleziona medico - {APP_NAME} {APP_VERSION}"
         )
+        self.setWindowIcon(app_icon())
         self.setModal(True)
         self.setFixedSize(
             660,

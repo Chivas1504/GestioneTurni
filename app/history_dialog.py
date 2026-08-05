@@ -27,6 +27,8 @@ from app.history_storage import (
 )
 
 
+from app.resources import app_icon
+
 class SortableTableItem(QTableWidgetItem):
 
     def __init__(
@@ -35,6 +37,7 @@ class SortableTableItem(QTableWidgetItem):
         sort_value: object,
     ) -> None:
         super().__init__(text)
+
         self.sort_value = sort_value
 
     def __lt__(
@@ -59,6 +62,8 @@ class HistoryDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
+
+        self.setWindowIcon(app_icon())
 
         self.doctor_id = doctor_id
         self.doctor_name = doctor_name
