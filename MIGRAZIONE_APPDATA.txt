@@ -1,0 +1,21 @@
+MIGRAZIONE DATI - GESTIONE TURNI
+
+Questa versione salva i dati in:
+%LOCALAPPDATA%\GestioneTurni
+
+Struttura:
+- config\    configurazioni dei medici
+- queue\     numeri delle code
+- history\   storico personale
+- display\   riservata alle preferenze del display
+
+Al primo avvio, i vecchi file presenti nella cartella data del progetto
+vengono copiati automaticamente nelle nuove cartelle. I file originali
+non vengono eliminati e restano disponibili come backup.
+
+File modificati:
+- app/paths.py (nuovo)
+- app/config.py
+- app/storage.py
+- app/history_storage.py
+- main.py

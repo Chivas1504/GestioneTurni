@@ -9,8 +9,11 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIRECTORY = PROJECT_ROOT / "data"
+from app.paths import (
+    QUEUE_DIR,
+    get_turns_file as resolve_turns_file,
+    get_turns_lock_file as resolve_turns_lock_file,
+)
 
 VALID_PROFILES = {
     "doctor1",
@@ -57,29 +60,13 @@ def get_active_storage_profile() -> str | None:
 
 
 def get_turns_file() -> Path:
-    """
-    Restituisce il file JSON utilizzato dal profilo attivo.
-    """
-    if _active_storage_profile is None:
-        return DATA_DIRECTORY / "turns.json"
-
-    return (
-        DATA_DIRECTORY
-        / f"turns_{_active_storage_profile}.json"
-    )
+    """Restituisce il file JSON utilizzato dal profilo attivo."""
+    return resolve_turns_file(_active_storage_profile)
 
 
 def get_turns_lock_file() -> Path:
-    """
-    Restituisce il file di lock relativo al profilo attivo.
-    """
-    if _active_storage_profile is None:
-        return DATA_DIRECTORY / "turns.lock"
-
-    return (
-        DATA_DIRECTORY
-        / f"turns_{_active_storage_profile}.lock"
-    )
+    """Restituisce il file di lock relativo al profilo attivo."""
+    return resolve_turns_lock_file(_active_storage_profile)
 
 
 def load_turns() -> dict[str, int]:
@@ -89,7 +76,7 @@ def load_turns() -> dict[str, int]:
     Se il file non esiste o è temporaneamente illeggibile,
     restituisce una struttura valida con entrambi i medici.
     """
-    DATA_DIRECTORY.mkdir(
+    QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -119,7 +106,7 @@ def save_turns(
     - file temporaneo univoco;
     - tentativi automatici in caso di blocco di OneDrive.
     """
-    DATA_DIRECTORY.mkdir(
+    QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -201,7 +188,7 @@ def _save_turns_unlocked(
     turns_file = get_turns_file()
 
     temporary_file = (
-        DATA_DIRECTORY
+        QUEUE_DIR
         / (
             f"{turns_file.stem}_"
             f"{os.getpid()}_"
@@ -288,7 +275,7 @@ def _turns_file_lock() -> Iterator[None]:
     Impedisce a due processi di modificare contemporaneamente
     lo stesso file dei turni.
     """
-    DATA_DIRECTORY.mkdir(
+    QUEUE_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )

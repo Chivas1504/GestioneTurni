@@ -10,11 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIRECTORY = PROJECT_ROOT / "data"
-
-HISTORY_FILE = DATA_DIRECTORY / "history.json"
-HISTORY_LOCK_FILE = DATA_DIRECTORY / "history.lock"
+from app.paths import HISTORY_DIR, HISTORY_FILE, HISTORY_LOCK_FILE
 
 DOCTOR_IDS = {
     "doctor1",
@@ -36,7 +32,7 @@ def load_history() -> list[dict[str, Any]]:
     così due istanze dell'applicazione non leggono il file
     mentre un'altra lo sta sostituendo.
     """
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -67,7 +63,7 @@ def save_history(
     - più tentativi di sostituzione per tollerare
       i blocchi temporanei causati da Windows o OneDrive.
     """
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -97,7 +93,7 @@ def start_daily_queue(
         starting_number
     )
 
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -172,7 +168,7 @@ def update_daily_queue(
         current_number
     )
 
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -235,7 +231,7 @@ def end_daily_queue(
         final_number
     )
 
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -312,7 +308,7 @@ def clear_history_for_doctor(
         doctor_id
     )
 
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -431,7 +427,7 @@ def _save_history_unlocked(
             continue
 
     temporary_file = (
-        DATA_DIRECTORY
+        HISTORY_DIR
         / (
             "history_"
             f"{os.getpid()}_"
@@ -521,7 +517,7 @@ def _history_file_lock(
     Solo un'istanza alla volta può eseguire operazioni
     di lettura-modifica-scrittura sullo storico.
     """
-    DATA_DIRECTORY.mkdir(
+    HISTORY_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )

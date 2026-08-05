@@ -1,10 +1,8 @@
 import json
-from pathlib import Path
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIRECTORY = PROJECT_ROOT / "data"
+from app.paths import CONFIG_DIR, get_config_file as resolve_config_file
 
 _active_profile: str | None = None
 
@@ -39,18 +37,12 @@ def get_active_profile() -> str | None:
     return _active_profile
 
 
-def get_config_file() -> Path:
-    if _active_profile is None:
-        return DATA_DIRECTORY / "config.json"
-
-    return (
-        DATA_DIRECTORY
-        / f"config_{_active_profile}.json"
-    )
+def get_config_file():
+    return resolve_config_file(_active_profile)
 
 
 def load_config() -> dict[str, Any]:
-    DATA_DIRECTORY.mkdir(
+    CONFIG_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -130,7 +122,7 @@ def load_config() -> dict[str, Any]:
 def save_config(
     config: dict[str, Any],
 ) -> None:
-    DATA_DIRECTORY.mkdir(
+    CONFIG_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )

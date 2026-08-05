@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication, QDialog
 
 from app.config import load_config, set_active_profile
 from app.controller import AppController
+from app.paths import ensure_data_directories, migrate_legacy_data
 from app.setup_dialog import SetupDialog
 from app.storage import set_active_storage_profile
 from app.window import MainWindow
@@ -37,6 +38,9 @@ def read_profile_argument() -> str | None:
 
 
 def main() -> None:
+    ensure_data_directories()
+    migrate_legacy_data()
+
     profile = read_profile_argument()
 
     set_active_profile(profile)
