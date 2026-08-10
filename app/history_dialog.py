@@ -162,6 +162,9 @@ class HistoryDialog(QDialog):
         self.table.setSelectionMode(
             QAbstractItemView.SelectionMode.SingleSelection
         )
+        # Evita il rettangolo di focus disegnato sopra il testo
+        # della cella selezionata (in particolare sulla colonna Data).
+        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.setAlternatingRowColors(
             True
         )
@@ -171,9 +174,45 @@ class HistoryDialog(QDialog):
         self.table.verticalHeader().setVisible(
             False
         )
+        self.table.itemSelectionChanged.connect(
+            self.update_patient_details
+        )
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+
+        self.patient_details_title = QLabel(
+            "PAZIENTI DELLA SESSIONE"
+        )
+        self.patient_details_title.setObjectName(
+            "patientDetailsTitle"
+        )
+
+        self.patient_details_hint = QLabel(
+            "Seleziona una sessione per vedere la durata di ogni paziente."
+        )
+        self.patient_details_hint.setObjectName(
+            "patientDetailsHint"
+        )
+
+        self.patient_table = QTableWidget()
+        self.patient_table.setColumnCount(2)
+        self.patient_table.setHorizontalHeaderLabels(
+            ["Paziente", "Durata"]
+        )
+        self.patient_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.patient_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
+        self.patient_table.setAlternatingRowColors(True)
+        self.patient_table.verticalHeader().setVisible(False)
+        self.patient_table.setMaximumHeight(190)
+        patient_header = self.patient_table.horizontalHeader()
+        patient_header.setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
 
@@ -252,6 +291,15 @@ class HistoryDialog(QDialog):
             self.table,
             stretch=1,
         )
+        main_layout.addWidget(
+            self.patient_details_title
+        )
+        main_layout.addWidget(
+            self.patient_details_hint
+        )
+        main_layout.addWidget(
+            self.patient_table
+        )
         main_layout.addLayout(
             buttons_layout
         )
@@ -282,6 +330,18 @@ class HistoryDialog(QDialog):
                 font-weight: 700;
             }
 
+            QLabel#patientDetailsTitle {
+                color: #2c6088;
+                font-size: 15px;
+                font-weight: 900;
+                letter-spacing: 1px;
+            }
+
+            QLabel#patientDetailsHint {
+                color: #60758a;
+                font-size: 13px;
+            }
+
             QLineEdit {
                 background-color: white;
                 color: #213d53;
@@ -297,6 +357,7 @@ class HistoryDialog(QDialog):
 
             QTableWidget {
                 background-color: white;
+                outline: 0;
                 alternate-background-color: #f4f7fa;
                 color: #213d53;
                 border: 1px solid #d4dfe8;
@@ -312,6 +373,8 @@ class HistoryDialog(QDialog):
             QTableWidget::item:selected {
                 background-color: #cde8dc;
                 color: #173e2d;
+                border: none;
+                outline: none;
             }
 
             QHeaderView::section {
@@ -404,6 +467,9 @@ class HistoryDialog(QDialog):
             iso_date
         )
 
+        patient_visits = entry.get("patient_visits", [])
+        patient_text = self._format_patient_visits(patient_visits)
+
         searchable_values = [
             iso_date.lower(),
             display_date.lower(),
@@ -413,6 +479,7 @@ class HistoryDialog(QDialog):
             str(
                 entry.get("ended_at", "")
             ).lower(),
+            patient_text.lower(),
         ]
 
         return any(
@@ -516,6 +583,10 @@ class HistoryDialog(QDialog):
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter
                 )
+                item.setData(
+                    Qt.ItemDataRole.UserRole,
+                    entry,
+                )
                 self.table.setItem(
                     row,
                     column,
@@ -523,6 +594,104 @@ class HistoryDialog(QDialog):
                 )
 
         self.table.setSortingEnabled(True)
+
+        if self.table.rowCount() > 0:
+            self.table.selectRow(0)
+        else:
+            self.update_patient_details()
+
+
+    def update_patient_details(self) -> None:
+        selected_items = self.table.selectedItems()
+
+        if not selected_items:
+            self.patient_table.setRowCount(0)
+            self.patient_details_hint.setText(
+                "Seleziona una sessione per vedere la durata di ogni paziente."
+            )
+            return
+
+        entry = selected_items[0].data(
+            Qt.ItemDataRole.UserRole
+        )
+
+        if not isinstance(entry, dict):
+            self.patient_table.setRowCount(0)
+            return
+
+        visits = entry.get("patient_visits", [])
+        if not isinstance(visits, list):
+            visits = []
+
+        valid_visits = [
+            visit
+            for visit in visits
+            if isinstance(visit, dict)
+        ]
+
+        self.patient_table.setRowCount(
+            len(valid_visits)
+        )
+
+        if not valid_visits:
+            self.patient_details_hint.setText(
+                "Per questa sessione non sono presenti tempi paziente registrati."
+            )
+            return
+
+        self.patient_details_hint.setText(
+            f"{len(valid_visits)} pazienti con durata registrata"
+        )
+
+        for row, visit in enumerate(valid_visits):
+            ticket = str(
+                visit.get("ticket", "")
+            ).strip()
+
+            if not ticket:
+                prefix = str(
+                    visit.get("queue_prefix", "")
+                ).strip().upper()
+                number = self._safe_int(
+                    visit.get("number", 0)
+                )
+                ticket = f"{prefix}{number}"
+
+            duration = self._format_patient_duration(
+                visit.get("duration_seconds", 0)
+            )
+
+            ticket_item = QTableWidgetItem(ticket or "—")
+            duration_item = QTableWidgetItem(duration)
+
+            ticket_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter
+            )
+            duration_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter
+            )
+
+            self.patient_table.setItem(
+                row, 0, ticket_item
+            )
+            self.patient_table.setItem(
+                row, 1, duration_item
+            )
+
+    @staticmethod
+    def _format_patient_duration(value: object) -> str:
+        try:
+            seconds = max(0, int(value))
+        except (TypeError, ValueError):
+            seconds = 0
+
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
+
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+        return f"{minutes:02d}:{secs:02d}"
 
     def update_summary(self) -> None:
         total_sessions = len(
@@ -611,6 +780,7 @@ class HistoryDialog(QDialog):
                         "Pazienti serviti",
                         "Durata minuti",
                         "Pazienti per ora",
+                        "Tempi pazienti",
                     ]
                 )
 
@@ -664,6 +834,9 @@ class HistoryDialog(QDialog):
                                 "patients_per_hour"
                             )
                             or "",
+                            self._format_patient_visits(
+                                entry.get("patient_visits", [])
+                            ),
                         ]
                     )
 
@@ -713,6 +886,30 @@ class HistoryDialog(QDialog):
             self.doctor_id
         )
         self.refresh_history()
+
+    @staticmethod
+    def _format_patient_visits(value: object) -> str:
+        if not isinstance(value, list) or not value:
+            return "—"
+
+        parts: list[str] = []
+        for visit in value:
+            if not isinstance(visit, dict):
+                continue
+            ticket = str(visit.get("ticket", "")).strip()
+            try:
+                seconds = max(0, int(visit.get("duration_seconds", 0)))
+            except (TypeError, ValueError):
+                seconds = 0
+            hours, remainder = divmod(seconds, 3600)
+            minutes, secs = divmod(remainder, 60)
+            if hours > 0:
+                duration = f"{hours:02d}:{minutes:02d}:{secs:02d}"
+            else:
+                duration = f"{minutes:02d}:{secs:02d}"
+            parts.append(f"{ticket or '?'} {duration}")
+
+        return " · ".join(parts) if parts else "—"
 
     @staticmethod
     def _format_date(

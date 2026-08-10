@@ -186,6 +186,11 @@ class DashboardDialog(QDialog):
             "—",
         )
 
+        self.today_patient_time_card = StatisticCard(
+            "Tempo medio per paziente",
+            "—",
+        )
+
         today_grid = QGridLayout()
         today_grid.setHorizontalSpacing(16)
         today_grid.setVerticalSpacing(16)
@@ -209,6 +214,13 @@ class DashboardDialog(QDialog):
             self.today_rate_card,
             0,
             3,
+        )
+        today_grid.addWidget(
+            self.today_patient_time_card,
+            1,
+            0,
+            1,
+            2,
         )
 
         month_section = QLabel(
@@ -520,6 +532,21 @@ class DashboardDialog(QDialog):
                 today_rate
             ),
             subtitle="Pazienti ogni ora",
+        )
+
+        timed_patients = self._safe_int(
+            today.get("timed_patients", 0)
+        )
+        average_patient_seconds = today.get(
+            "average_patient_seconds"
+        )
+        self.today_patient_time_card.update_content(
+            value=self._format_seconds(average_patient_seconds),
+            subtitle=(
+                f"{timed_patients} pazienti cronometrati"
+                if timed_patients != 1
+                else "1 paziente cronometrato"
+            ),
         )
 
         month = dashboard.get(
@@ -859,6 +886,20 @@ class DashboardDialog(QDialog):
             ValueError,
         ):
             return 0
+
+    @staticmethod
+    def _format_seconds(value: object) -> str:
+        if value is None:
+            return "—"
+        try:
+            seconds = max(0, int(value))
+        except (TypeError, ValueError):
+            return "—"
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+        return f"{minutes:02d}:{secs:02d}"
 
     @staticmethod
     def _format_duration(

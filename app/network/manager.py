@@ -45,6 +45,7 @@ class NetworkManager(QObject):
         self._server_address = ""
 
         self._stop_event = threading.Event()
+        self._outbox_event = threading.Event()
         self._state_lock = threading.RLock()
         self._outbox_lock = threading.Lock()
 
@@ -57,6 +58,7 @@ class NetworkManager(QObject):
 
 
         self._outbox: list[dict[str, Any]] = []
+        self._peer_addresses: set[str] = set()
 
     @property
     def role(self) -> str:
@@ -68,6 +70,15 @@ class NetworkManager(QObject):
         with self._state_lock:
             return self._server_address
 
+    @property
+    def local_address(self) -> str:
+        return self._get_local_ip()
+
+    @property
+    def peer_addresses(self) -> list[str]:
+        with self._state_lock:
+            return sorted(self._peer_addresses)
+
     def start(self) -> None:
         if (
             self._main_thread
@@ -76,6 +87,7 @@ class NetworkManager(QObject):
             return
 
         self._stop_event.clear()
+        self._outbox_event.clear()
 
         self._main_thread = threading.Thread(
             target=self._run,
@@ -86,6 +98,7 @@ class NetworkManager(QObject):
 
     def stop(self) -> None:
         self._stop_event.set()
+        self._outbox_event.set()
         self._close_server_sockets()
 
     def send_message(
@@ -109,6 +122,11 @@ class NetworkManager(QObject):
                 ]
 
             self._outbox.append(safe_message)
+
+        # Se questo PC è il Client, risveglia subito il ciclo di
+        # comunicazione. L'aggiornamento non deve attendere il
+        # successivo heartbeat periodico.
+        self._outbox_event.set()
 
     def _run(self) -> None:
         self.status_changed.emit(
@@ -288,7 +306,7 @@ class NetworkManager(QObject):
 
         while not self._stop_event.is_set():
             try:
-                connection, _ = (
+                connection, sender = (
                     heartbeat_socket.accept()
                 )
 
@@ -297,6 +315,11 @@ class NetworkManager(QObject):
 
             except OSError:
                 break
+
+            peer_address = str(sender[0]).strip()
+            if peer_address and peer_address != "127.0.0.1":
+                with self._state_lock:
+                    self._peer_addresses.add(peer_address)
 
             with connection:
                 connection.settimeout(
@@ -455,6 +478,10 @@ class NetworkManager(QObject):
         self,
         server_address: str,
     ) -> None:
+        with self._state_lock:
+            if server_address and server_address != "127.0.0.1":
+                self._peer_addresses.add(server_address)
+
         self._set_role(
             "client",
             server_address,
@@ -468,6 +495,11 @@ class NetworkManager(QObject):
         missed_heartbeats = 0
 
         while not self._stop_event.is_set():
+            # Si azzera prima dello scambio: se un nuovo messaggio
+            # arriva mentre la comunicazione è in corso, l'evento
+            # resta impostato e provoca immediatamente un altro giro.
+            self._outbox_event.clear()
+
             response = self._exchange_with_server(
                 server_address
             )
@@ -533,7 +565,10 @@ class NetworkManager(QObject):
                 self._elect_server()
                 return
 
-            self._stop_event.wait(
+            # Normalmente il prossimo controllo avviene al ritmo
+            # dell'heartbeat. Un aggiornamento locale del Client
+            # interrompe però subito l'attesa tramite _outbox_event.
+            self._outbox_event.wait(
                 HEARTBEAT_INTERVAL_SECONDS
             )
 

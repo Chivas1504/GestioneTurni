@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
+import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
@@ -18,6 +19,7 @@ from app.about_dialog import AboutDialog
 from app.controller import AppController
 from app.resources import app_icon
 from app.version import APP_NAME, APP_VERSION
+from app.web_display_server import WEB_DISPLAY_PORT
 from app.studio_card import StudioCard
 from app.styles import APP_STYLE
 
@@ -97,6 +99,7 @@ class MainWindow(QMainWindow):
         self._build_doctor_card(
             current_number
         )
+        self._build_patient_timer()
         self._build_queue_controls()
         self._build_action_controls()
         self._build_network_area()
@@ -143,10 +146,67 @@ class MainWindow(QMainWindow):
         self.doctor_card = StudioCard(
             self.doctor_name,
             current_number,
+            queue_prefix=self.controller.queue_prefix,
         )
 
         self.doctor_card.number_changed.connect(
             self.controller.set_number
+        )
+
+    def _build_patient_timer(self) -> None:
+        self.patient_timer_label = QLabel()
+        self.patient_timer_label.setObjectName(
+            "patientTimerLabel"
+        )
+        self.patient_timer_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+        self.patient_timer_label.setFixedHeight(34)
+
+        self.patient_timer = QTimer(self)
+        self.patient_timer.setInterval(1000)
+        self.patient_timer.timeout.connect(
+            self.update_patient_timer
+        )
+        self.patient_timer.start()
+        self.update_patient_timer()
+
+    def update_patient_timer(self, *_args) -> None:
+        timer_state = self.controller.get_current_patient_timer()
+
+        if not timer_state.get("active", False):
+            self.patient_timer_label.setText(
+                "Tempo paziente: —"
+            )
+            self.patient_timer_label.setProperty(
+                "active",
+                False,
+            )
+            self._refresh_widget_style(
+                self.patient_timer_label
+            )
+            return
+
+        try:
+            started_at = float(timer_state.get("started_at", 0.0))
+        except (TypeError, ValueError):
+            started_at = time.time()
+
+        elapsed = max(0, int(time.time() - started_at))
+        hours, remainder = divmod(elapsed, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        ticket = str(timer_state.get("ticket", "")).strip()
+
+        self.patient_timer_label.setText(
+            f"Tempo paziente {ticket}: "
+            f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        )
+        self.patient_timer_label.setProperty(
+            "active",
+            True,
+        )
+        self._refresh_widget_style(
+            self.patient_timer_label
         )
 
     def _build_queue_controls(self) -> None:
@@ -338,6 +398,9 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(
             self.doctor_card
         )
+        main_layout.addWidget(
+            self.patient_timer_label
+        )
 
         main_layout.addWidget(
             self.queue_status_label
@@ -385,6 +448,10 @@ class MainWindow(QMainWindow):
             self.update_server_address
         )
 
+        self.controller.patient_timer_changed.connect(
+            self.update_patient_timer
+        )
+
     def on_shared_state_changed(
         self,
         complete_state: object,
@@ -421,6 +488,13 @@ class MainWindow(QMainWindow):
             )
         )
 
+        queue_prefix = str(
+            local_state.get(
+                "queue_prefix",
+                self.controller.queue_prefix,
+            )
+        ).strip().upper()
+
         queue_active = bool(
             local_state.get(
                 "queue_active",
@@ -436,6 +510,8 @@ class MainWindow(QMainWindow):
             self.doctor_card.set_studio_name(
                 doctor_name
             )
+
+        self.doctor_card.set_queue_prefix(queue_prefix)
 
         if number != self.doctor_card.number:
             self.doctor_card.set_number(
@@ -536,12 +612,14 @@ class MainWindow(QMainWindow):
             sync_text,
         ]
 
-        if (
-            self.current_network_role == "Client"
-            and self.current_server_address
-        ):
+        if self.current_server_address:
+            if self.current_network_role == "Client":
+                parts.append(self.current_server_address)
+
             parts.append(
-                self.current_server_address
+                "TV: "
+                f"http://{self.current_server_address}:"
+                f"{WEB_DISPLAY_PORT}"
             )
 
         self.network_summary_label.setText(
@@ -633,6 +711,17 @@ class MainWindow(QMainWindow):
 
         QPushButton#aboutButton:hover {
             background-color: #d2dde6;
+        }
+
+        QLabel#patientTimerLabel {
+            color: #60758a;
+            font-size: 16px;
+            font-weight: 800;
+            padding: 4px;
+        }
+
+        QLabel#patientTimerLabel[active="true"] {
+            color: #17689c;
         }
 
         QLabel#networkSummary {

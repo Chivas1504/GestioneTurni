@@ -20,6 +20,7 @@ class SharedState(QObject):
         self,
         local_doctor_id: str,
         local_doctor_name: str,
+        local_queue_prefix: str = "",
         local_number: int = 0,
         local_queue_active: bool = False,
     ) -> None:
@@ -43,6 +44,7 @@ class SharedState(QObject):
             {
                 "doctor_id": local_doctor_id,
                 "doctor_name": local_doctor_name,
+                "queue_prefix": local_queue_prefix,
                 "number": local_number,
                 "queue_active": local_queue_active,
                 "online": True,
@@ -71,6 +73,7 @@ class SharedState(QObject):
         self,
         *,
         doctor_name: str | None = None,
+        queue_prefix: str | None = None,
         number: int | None = None,
         queue_active: bool | None = None,
         online: bool | None = None,
@@ -87,6 +90,9 @@ class SharedState(QObject):
                     )
 
                 current["doctor_name"] = clean_name
+
+            if queue_prefix is not None:
+                current["queue_prefix"] = self._clean_queue_prefix(queue_prefix)
 
             if number is not None:
                 current["number"] = max(0, int(number))
@@ -223,6 +229,7 @@ class SharedState(QObject):
         return {
             "doctor_id": doctor_id,
             "doctor_name": "",
+            "queue_prefix": "",
             "number": 0,
             "queue_active": False,
             "online": False,
@@ -257,6 +264,9 @@ class SharedState(QObject):
         return {
             "doctor_id": expected_doctor_id,
             "doctor_name": doctor_name,
+            "queue_prefix": SharedState._clean_queue_prefix(
+                doctor_state.get("queue_prefix", "")
+            ),
             "number": number,
             "queue_active": bool(
                 doctor_state.get(
@@ -269,6 +279,14 @@ class SharedState(QObject):
             ),
             "updated_at": max(0.0, updated_at),
         }
+
+    @staticmethod
+    def _clean_queue_prefix(value: object) -> str:
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        first = text[0]
+        return first if "A" <= first <= "Z" else ""
 
     @staticmethod
     def _validate_doctor_id(

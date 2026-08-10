@@ -116,6 +116,7 @@ def start_daily_queue(
             "ended_at": None,
             "duration_minutes": None,
             "patients_per_hour": None,
+            "patient_visits": [],
         }
 
         history.append(entry)
@@ -166,6 +167,7 @@ def update_daily_queue(
                 "ended_at": None,
                 "duration_minutes": None,
                 "patients_per_hour": None,
+                "patient_visits": [],
             }
 
             history.append(entry)
@@ -224,6 +226,73 @@ def end_daily_queue(
         _update_statistics(entry)
         _save_history_unlocked(history)
 
+        return dict(entry)
+
+
+def record_patient_visit(
+    *,
+    doctor_id: str,
+    doctor_name: str,
+    queue_prefix: str,
+    patient_number: int,
+    started_at_epoch: float,
+    ended_at_epoch: float,
+) -> dict[str, Any] | None:
+    """Registra la durata di un singolo paziente nella sessione aperta."""
+    _validate_doctor_id(doctor_id)
+
+    clean_name = _clean_doctor_name(doctor_name)
+    safe_number = _safe_number(patient_number)
+    clean_prefix = _clean_queue_prefix(queue_prefix)
+
+    try:
+        started_at = datetime.fromtimestamp(float(started_at_epoch))
+        ended_at = datetime.fromtimestamp(float(ended_at_epoch))
+    except (TypeError, ValueError, OSError):
+        return None
+
+    if ended_at < started_at:
+        ended_at = started_at
+
+    duration_seconds = max(
+        0,
+        round((ended_at - started_at).total_seconds()),
+    )
+
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+
+    with _history_file_lock():
+        history = _load_history_unlocked()
+        entry_date = started_at.date().isoformat()
+
+        entry = _find_open_entry(
+            history=history,
+            doctor_id=doctor_id,
+            entry_date=entry_date,
+        )
+
+        if entry is None:
+            return None
+
+        patient_visits = entry.setdefault("patient_visits", [])
+        if not isinstance(patient_visits, list):
+            patient_visits = []
+            entry["patient_visits"] = patient_visits
+
+        patient_visits.append(
+            {
+                "number": safe_number,
+                "queue_prefix": clean_prefix,
+                "ticket": f"{clean_prefix}{safe_number}",
+                "started_at": started_at.isoformat(timespec="seconds"),
+                "ended_at": ended_at.isoformat(timespec="seconds"),
+                "duration_seconds": duration_seconds,
+            }
+        )
+
+        entry["doctor_name"] = clean_name
+        _update_statistics(entry)
+        _save_history_unlocked(history)
         return dict(entry)
 
 
@@ -804,6 +873,9 @@ def _normalise_entry(
         "ended_at": ended_at,
         "duration_minutes": None,
         "patients_per_hour": None,
+        "patient_visits": _normalise_patient_visits(
+            raw_entry.get("patient_visits", [])
+        ),
     }
 
     _update_statistics(
@@ -839,6 +911,67 @@ def _normalise_optional_time(
         ) from error
 
     return clean_value
+
+
+def _normalise_patient_visits(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+
+    visits: list[dict[str, Any]] = []
+
+    for raw_visit in value:
+        if not isinstance(raw_visit, dict):
+            continue
+
+        number = _safe_number(raw_visit.get("number", 0))
+        prefix = _clean_queue_prefix(raw_visit.get("queue_prefix", ""))
+        started_at = _normalise_optional_datetime(raw_visit.get("started_at"))
+        ended_at = _normalise_optional_datetime(raw_visit.get("ended_at"))
+
+        if started_at is None or ended_at is None:
+            continue
+
+        try:
+            duration_seconds = max(
+                0,
+                int(raw_visit.get("duration_seconds", 0)),
+            )
+        except (TypeError, ValueError):
+            duration_seconds = 0
+
+        visits.append(
+            {
+                "number": number,
+                "queue_prefix": prefix,
+                "ticket": f"{prefix}{number}",
+                "started_at": started_at,
+                "ended_at": ended_at,
+                "duration_seconds": duration_seconds,
+            }
+        )
+
+    return visits
+
+
+def _normalise_optional_datetime(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return text
+
+
+def _clean_queue_prefix(value: object) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    first = text[0]
+    return first if "A" <= first <= "Z" else ""
 
 
 def _validate_doctor_id(

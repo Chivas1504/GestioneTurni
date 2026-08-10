@@ -1,0 +1,22 @@
+GESTIONE TURNI 1.3.0 - PREFISSO LETTERA CODA
+================================================
+
+Funzione aggiunta
+-----------------
+Ogni medico può impostare nelle Impostazioni una lettera personale da A a Z
+da mostrare prima del numero della propria coda. Il campo può anche restare vuoto.
+
+Comportamento
+-------------
+- Il numero resta memorizzato come valore numerico.
+- Cambiando lettera, il numero corrente non cambia.
+- Reset azzera soltanto il numero e non modifica la lettera.
+- La lettera è salvata nella configurazione personale del medico.
+- La lettera viene sincronizzata tra Server e Client.
+- La lettera compare nella finestra principale, nel display locale e sulla Fire TV.
+- Le vecchie configurazioni senza queue_prefix restano compatibili e usano prefisso vuoto.
+
+Esempio
+-------
+A17 -> cambio lettera in C -> C17
+C17 -> Reset -> C0

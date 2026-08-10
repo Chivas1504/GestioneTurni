@@ -10,6 +10,7 @@ DEFAULT_CONFIG = {
     "configured": False,
     "doctor_id": "",
     "doctor_name": "",
+    "queue_prefix": "",
     "queue_active": False,
     "display_fullscreen": False,
     "display_show_clock": True,
@@ -86,6 +87,9 @@ def load_config() -> dict[str, Any]:
             "doctor_name": str(
                 data.get("doctor_name", "")
             ).strip(),
+            "queue_prefix": _clean_queue_prefix(
+                data.get("queue_prefix", "")
+            ),
             "queue_active": bool(
                 data.get("queue_active", False)
             ),
@@ -150,6 +154,9 @@ def save_config(
         "doctor_name": str(
             config.get("doctor_name", "")
         ).strip(),
+        "queue_prefix": _clean_queue_prefix(
+            config.get("queue_prefix", "")
+        ),
         "queue_active": bool(
             config.get("queue_active", False)
         ),
@@ -185,3 +192,11 @@ def save_config(
         )
 
     temporary_file.replace(config_file)
+
+
+def _clean_queue_prefix(value: object) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    first = text[0]
+    return first if "A" <= first <= "Z" else ""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from typing import Any
 
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import QDialog
 from app.config import load_config, save_config
 from app.history_storage import (
     end_daily_queue,
+    record_patient_visit,
     start_daily_queue,
     update_daily_queue,
 )
@@ -18,6 +20,7 @@ from app.settings_dialog import SettingsDialog
 from app.shared_state import SharedState
 from app.storage import load_turns, save_turns
 from app.sync_manager import SyncManager
+from app.web_display_server import WebDisplayServer
 
 
 LOGGER = logging.getLogger(__name__)
@@ -33,6 +36,7 @@ class AppController(QObject):
     sync_status_changed = Signal(str)
 
     settings_changed = Signal(object)
+    patient_timer_changed = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -53,12 +57,29 @@ class AppController(QObject):
             )
         ).strip()
 
+        self.queue_prefix = self._clean_queue_prefix(
+            self.config.get("queue_prefix", "")
+        )
+
         self.queue_active = bool(
             self.config.get(
                 "queue_active",
                 False,
             )
         )
+
+        self._patient_started_at = self._safe_timestamp(
+            self.config.get("patient_started_at")
+        )
+        self._patient_number = self._safe_optional_number(
+            self.config.get("patient_number")
+        )
+        self._patient_prefix = self._clean_queue_prefix(
+            self.config.get("patient_prefix", "")
+        )
+
+        if not self.queue_active:
+            self._clear_patient_timer_state(save=True)
 
         turns = load_turns()
 
@@ -72,6 +93,7 @@ class AppController(QObject):
         self.shared_state = SharedState(
             local_doctor_id=self.doctor_id,
             local_doctor_name=self.doctor_name,
+            local_queue_prefix=self.queue_prefix,
             local_number=current_number,
             local_queue_active=self.queue_active,
         )
@@ -82,6 +104,20 @@ class AppController(QObject):
 
         self.network_manager = NetworkManager(
             self.doctor_id
+        )
+
+        self.web_display_server = WebDisplayServer(
+            state_provider=self.shared_state.get_all,
+            role_provider=lambda: self.network_manager.role,
+            server_address_provider=(
+                lambda: self.network_manager.server_address
+            ),
+            local_address_provider=(
+                lambda: self.network_manager.local_address
+            ),
+            peer_addresses_provider=(
+                lambda: self.network_manager.peer_addresses
+            ),
         )
 
         self.display_window = None
@@ -128,6 +164,7 @@ class AppController(QObject):
 
     def start(self) -> None:
         LOGGER.info("Avvio rete per il profilo %s", self.doctor_id)
+        self.web_display_server.start()
         self.network_manager.start()
 
     def close(self) -> None:
@@ -135,6 +172,7 @@ class AppController(QObject):
         self.sync_manager.notify_local_disconnect()
         self.shared_state.mark_local_offline()
         self.network_manager.stop()
+        self.web_display_server.stop()
 
         if self.display_window is not None:
             self.display_window.close()
@@ -234,7 +272,12 @@ class AppController(QObject):
             )
         ).strip()
 
+        new_prefix = self._clean_queue_prefix(
+            settings.get("queue_prefix", self.queue_prefix)
+        )
+
         self.config.update(settings)
+        self.config["queue_prefix"] = new_prefix
         save_config(self.config)
 
         if new_name != self.doctor_name:
@@ -252,6 +295,12 @@ class AppController(QObject):
                         self.get_local_number()
                     ),
                 )
+
+        if new_prefix != self.queue_prefix:
+            self.queue_prefix = new_prefix
+            self.shared_state.update_local(
+                queue_prefix=self.queue_prefix
+            )
 
         self.settings_changed.emit(
             dict(self.config)
@@ -331,14 +380,28 @@ class AppController(QObject):
     def set_number(
         self,
         number: int,
+        action: str = "set",
     ) -> None:
-        safe_number = self._safe_number(
-            number
+        safe_number = self._safe_number(number)
+        old_number = self.get_local_number()
+        clean_action = str(action or "set").strip().lower()
+
+        valid_increment = (
+            clean_action == "increment"
+            and safe_number == old_number + 1
         )
+
+        if self.queue_active and valid_increment:
+            self._finish_current_patient()
+
+        if clean_action == "reset":
+            self._finish_current_patient()
+
         LOGGER.info(
-            "Aggiornamento numero %s: %s",
+            "Aggiornamento numero %s: %s (%s)",
             self.doctor_id,
             safe_number,
+            clean_action,
         )
 
         turns = load_turns()
@@ -355,6 +418,9 @@ class AppController(QObject):
                 doctor_name=self.doctor_name,
                 current_number=safe_number,
             )
+
+        if self.queue_active and valid_increment:
+            self._start_patient_timer(safe_number)
 
         if self.history_window is not None:
             self.history_window.refresh_history()
@@ -398,6 +464,7 @@ class AppController(QObject):
                 starting_number=current_number,
             )
         else:
+            self._finish_current_patient()
             end_daily_queue(
                 doctor_id=self.doctor_id,
                 doctor_name=self.doctor_name,
@@ -420,6 +487,76 @@ class AppController(QObject):
 
         if self.dashboard_window is not None:
             self.dashboard_window.refresh_dashboard()
+
+    def get_current_patient_timer(self) -> dict[str, Any]:
+        active = (
+            self._patient_started_at is not None
+            and self._patient_number is not None
+        )
+        return {
+            "active": active,
+            "started_at": self._patient_started_at,
+            "number": self._patient_number,
+            "queue_prefix": self._patient_prefix,
+            "ticket": (
+                f"{self._patient_prefix}{self._patient_number}"
+                if active
+                else ""
+            ),
+        }
+
+    def _start_patient_timer(self, patient_number: int) -> None:
+        self._patient_started_at = time.time()
+        self._patient_number = self._safe_number(patient_number)
+        self._patient_prefix = self.queue_prefix
+        self._save_patient_timer_state()
+        self.patient_timer_changed.emit(
+            self.get_current_patient_timer()
+        )
+
+    def _finish_current_patient(self) -> None:
+        if (
+            self._patient_started_at is None
+            or self._patient_number is None
+        ):
+            return
+
+        ended_at = time.time()
+        try:
+            record_patient_visit(
+                doctor_id=self.doctor_id,
+                doctor_name=self.doctor_name,
+                queue_prefix=self._patient_prefix,
+                patient_number=self._patient_number,
+                started_at_epoch=self._patient_started_at,
+                ended_at_epoch=ended_at,
+            )
+        except (OSError, ValueError, TypeError):
+            LOGGER.exception(
+                "Impossibile registrare la durata del paziente %s",
+                self._patient_number,
+            )
+
+        self._clear_patient_timer_state(save=True)
+        self.patient_timer_changed.emit(
+            self.get_current_patient_timer()
+        )
+
+    def _save_patient_timer_state(self) -> None:
+        self.config["patient_started_at"] = self._patient_started_at
+        self.config["patient_number"] = self._patient_number
+        self.config["patient_prefix"] = self._patient_prefix
+        save_config(self.config)
+
+    def _clear_patient_timer_state(self, *, save: bool) -> None:
+        self._patient_started_at = None
+        self._patient_number = None
+        self._patient_prefix = ""
+        self.config.pop("patient_started_at", None)
+        self.config.pop("patient_number", None)
+        self.config.pop("patient_prefix", None)
+        if save:
+            save_config(self.config)
 
     def toggle_queue(self) -> None:
         self.set_queue_active(
@@ -473,6 +610,35 @@ class AppController(QObject):
         self.state_changed.emit(
             complete_state
         )
+
+    @staticmethod
+    def _clean_queue_prefix(value: object) -> str:
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        first = text[0]
+        return first if "A" <= first <= "Z" else ""
+
+    @staticmethod
+    def _safe_timestamp(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            timestamp = float(value)
+        except (TypeError, ValueError):
+            return None
+        if timestamp <= 0:
+            return None
+        return timestamp
+
+    @staticmethod
+    def _safe_optional_number(value: object) -> int | None:
+        if value is None:
+            return None
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _safe_number(

@@ -1,0 +1,49 @@
+INTEGRAZIONE FIRE TV - MODIFICHE ESEGUITE
+=========================================
+
+File aggiunti
+-------------
+- app/web_display_server.py
+  Server HTTP locale di sola lettura, pagina TV responsive e API /api/state.
+- FIRE_TV_SETUP.txt
+  Istruzioni di configurazione della rete e della Fire TV.
+
+File modificati
+---------------
+- app/controller.py
+  Avvia e arresta il servizio web insieme all'applicazione.
+- app/network/manager.py
+  Espone indirizzo locale e indirizzi dei peer già rilevati dalla rete esistente.
+  Non modifica l'algoritmo di elezione Server/Client.
+- app/window.py
+  Mostra nella schermata principale l'URL da aprire sulla Fire TV.
+
+Comportamento
+-------------
+- Ogni PC espone la pagina sulla porta TCP 8080.
+- La pagina accetta come fonte dati soltanto il PC con ruolo "server".
+- Gli indirizzi dei PC vengono memorizzati nel browser della Fire TV.
+- Se il Server scompare, la pagina prova automaticamente gli altri indirizzi
+  conosciuti e passa al nuovo Server eletto.
+- La pagina e l'API sono di sola lettura.
+- Gestione Turni non viene eseguito sulla Fire TV.
+
+Verifiche eseguite
+------------------
+- Compilazione sintattica di tutti i file Python.
+- Avvio e arresto del server HTTP.
+- Risposta valida di /api/state.
+- Caricamento della pagina HTML principale.
+
+Non inclusi
+-----------
+- Nuovo installer Windows compilato: la compilazione Inno Setup/PyInstaller
+  deve essere eseguita su Windows.
+- Configurazione del router: le prenotazioni DHCP dipendono dal modello del
+  router e dalla rete dello studio.
+
+AGGIORNAMENTO DISPLAY AUTOMATICO
+- Schermata di attesa quando nessuna coda è attiva.
+- Comparsa automatica della scheda TV quando si preme Inizia coda.
+- Aggiornamento ridotto a circa 500 ms.
+- Corretto il ripristino dell'elemento principale passando da coda attiva a inattiva.

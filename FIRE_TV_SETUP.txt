@@ -1,0 +1,23 @@
+GESTIONE TURNI - CONFIGURAZIONE FIRE TV
+
+COMPORTAMENTO PREVISTO
+
+1. Sulla Fire TV aprire una sola volta nel browser l'indirizzo TV mostrato in basso nell'applicazione.
+2. Lasciare la pagina aperta a schermo intero.
+3. Quando nessuna coda è attiva, la TV mostra la schermata "In attesa".
+4. Quando da uno dei PC si preme "Inizia coda", entro circa mezzo secondo sulla TV compare automaticamente la scheda del medico e il numero chiamato.
+5. I pulsanti +1, -1 e Reset aggiornano automaticamente la TV.
+6. Se sono attive entrambe le code, la TV mostra entrambe.
+7. Quando si termina una coda, la relativa scheda scompare automaticamente.
+
+IMPORTANTE
+La Fire TV non esegue Gestione Turni e non deve avere Python installato. Deve soltanto tenere aperta la pagina del display nel browser. Il PC non può aprire da solo il browser Silk quando la Fire TV è nella schermata Home: la pagina va aperta una volta e lasciata aperta.
+
+RETE
+- Fire TV e i due PC devono essere collegati alla stessa rete locale.
+- Il display usa la porta TCP 8080.
+- Se Windows mostra una richiesta Firewall, consentire l'accesso sulle reti private.
+- È consigliato assegnare ai due PC indirizzi IP riservati dal router.
+
+FAILOVER
+La pagina conserva gli indirizzi conosciuti dei due PC. Se il Server si spegne mentre la pagina è aperta, cerca automaticamente l'altro PC e usa quello quando diventa Server.

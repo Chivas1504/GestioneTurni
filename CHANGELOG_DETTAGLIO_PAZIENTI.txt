@@ -1,0 +1,7 @@
+GESTIONE TURNI 1.4.1 - DETTAGLIO TEMPI PAZIENTI
+
+- Storico personale: rimossa la colonna compatta "Tempi pazienti" dalla tabella principale.
+- Selezionando una sessione compare sotto la tabella il riquadro "Pazienti della sessione".
+- Il riquadro mostra per ogni paziente il ticket completo (es. A12) e la durata registrata.
+- Le sessioni precedenti senza tempi paziente restano compatibili e mostrano un messaggio informativo.
+- Esportazione CSV dei tempi paziente mantenuta.

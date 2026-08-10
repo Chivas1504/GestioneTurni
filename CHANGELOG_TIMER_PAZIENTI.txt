@@ -1,0 +1,12 @@
+GESTIONE TURNI 1.4.0 - TIMER PAZIENTI
+
+- Il timer del paziente parte automaticamente quando il medico preme +1 con la coda attiva.
+- Premendo di nuovo +1 viene salvata la durata del paziente precedente e parte il nuovo timer.
+- Reset chiude il paziente corrente, azzera solo il numero e lascia fermo il timer fino al prossimo +1.
+- Termina coda chiude e salva l'eventuale paziente corrente.
+- Il timer è mostrato solo sul PC del medico, non sulla pagina TV.
+- Il timer in corso viene conservato in configurazione e riprende dopo un riavvio se la coda è ancora attiva.
+- Le durate dei singoli pazienti sono salvate nello storico della sessione.
+- Lo Storico mostra la colonna Tempi pazienti ed esporta gli stessi dati nel CSV.
+- La Dashboard mostra il tempo medio per paziente della giornata.
+- Compatibile con gli storici esistenti: le sessioni precedenti non hanno tempi paziente e restano leggibili.

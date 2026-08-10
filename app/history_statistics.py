@@ -51,6 +51,13 @@ def get_personal_dashboard(
         duration_minutes=today_duration_minutes,
     )
 
+    today_patient_durations = _patient_durations(today_sessions)
+    today_average_patient_seconds = (
+        round(sum(today_patient_durations) / len(today_patient_durations))
+        if today_patient_durations
+        else None
+    )
+
     month_patients = sum(
         _safe_int(
             entry.get("patients_served", 0)
@@ -97,6 +104,8 @@ def get_personal_dashboard(
             "duration_minutes": today_duration_minutes,
             "patients_per_hour": today_rate,
             "sessions": len(today_sessions),
+            "timed_patients": len(today_patient_durations),
+            "average_patient_seconds": today_average_patient_seconds,
         },
         "month": {
             "patients_served": month_patients,
@@ -107,6 +116,23 @@ def get_personal_dashboard(
         },
         "last_session": last_session,
     }
+
+
+def _patient_durations(sessions: list[dict[str, Any]]) -> list[int]:
+    durations: list[int] = []
+    for entry in sessions:
+        visits = entry.get("patient_visits", [])
+        if not isinstance(visits, list):
+            continue
+        for visit in visits:
+            if not isinstance(visit, dict):
+                continue
+            try:
+                seconds = max(0, int(visit.get("duration_seconds", 0)))
+            except (TypeError, ValueError):
+                continue
+            durations.append(seconds)
+    return durations
 
 
 def _group_patients_by_date(

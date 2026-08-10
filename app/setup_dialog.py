@@ -206,6 +206,7 @@ class SetupDialog(QDialog):
             "configured": True,
             "doctor_id": doctor_id,
             "doctor_name": doctor_name,
+            "queue_prefix": "",
             "queue_active": False,
             "display_fullscreen": False,
             "display_show_clock": True,

@@ -27,11 +27,13 @@ class DoctorDisplayCard(QFrame):
         doctor_id: str,
         doctor_name: str,
         number: int,
+        queue_prefix: str = "",
     ) -> None:
         super().__init__()
 
         self.doctor_id = doctor_id
         self._number = number
+        self._queue_prefix = self._clean_prefix(queue_prefix)
 
         self.setObjectName(
             "doctorCard1"
@@ -53,7 +55,7 @@ class DoctorDisplayCard(QFrame):
         self.called_label.setObjectName("displayCalledLabel")
         self.called_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.number_label = QLabel(str(number))
+        self.number_label = QLabel(self._formatted_number())
         self.number_label.setObjectName("displayDoctorNumber")
         self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.number_label.setSizePolicy(
@@ -83,14 +85,28 @@ class DoctorDisplayCard(QFrame):
         self,
         doctor_name: str,
         number: int,
+        queue_prefix: str = "",
     ) -> None:
         self.name_label.setText(doctor_name)
+        clean_prefix = self._clean_prefix(queue_prefix)
 
-        if number == self._number:
+        if number == self._number and clean_prefix == self._queue_prefix:
             return
 
         self._number = number
-        self.number_label.setText(str(number))
+        self._queue_prefix = clean_prefix
+        self.number_label.setText(self._formatted_number())
+
+    def _formatted_number(self) -> str:
+        return f"{self._queue_prefix}{self._number}"
+
+    @staticmethod
+    def _clean_prefix(value: object) -> str:
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        first = text[0]
+        return first if "A" <= first <= "Z" else ""
 
     def _apply_shadow(self) -> None:
         shadow = QGraphicsDropShadowEffect(self)
@@ -379,6 +395,9 @@ class DisplayWindow(QMainWindow):
                 {
                     "doctor_id": doctor_id,
                     "doctor_name": doctor_name or "Medico",
+                    "queue_prefix": str(
+                        doctor_state.get("queue_prefix", "")
+                    ).strip().upper()[:1],
                     "number": self._safe_number(
                         doctor_state.get("number", 0)
                     ),
@@ -420,6 +439,7 @@ class DisplayWindow(QMainWindow):
             doctor_id = str(doctor["doctor_id"])
             doctor_name = str(doctor["doctor_name"])
             number = self._safe_number(doctor["number"])
+            queue_prefix = str(doctor.get("queue_prefix", ""))
 
             existing_card = self.doctor_cards.get(doctor_id)
 
@@ -428,6 +448,7 @@ class DisplayWindow(QMainWindow):
                     doctor_id=doctor_id,
                     doctor_name=doctor_name,
                     number=number,
+                    queue_prefix=queue_prefix,
                 )
                 self.doctor_cards[doctor_id] = card
                 self.cards_layout.addWidget(card, stretch=1)
@@ -435,6 +456,7 @@ class DisplayWindow(QMainWindow):
                 existing_card.update_doctor(
                     doctor_name=doctor_name,
                     number=number,
+                    queue_prefix=queue_prefix,
                 )
 
     def toggle_fullscreen(self) -> None:

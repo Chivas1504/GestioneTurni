@@ -79,6 +79,18 @@ class SettingsDialog(QDialog):
             self.doctor_name_input,
         )
 
+        self.queue_prefix_input = QLineEdit()
+        self.queue_prefix_input.setPlaceholderText("Es. A")
+        self.queue_prefix_input.setMaxLength(1)
+        self.queue_prefix_input.setMinimumHeight(46)
+        self.queue_prefix_input.setText(
+            str(current_config.get("queue_prefix", "")).upper()
+        )
+        doctor_form.addRow(
+            "Lettera della coda:",
+            self.queue_prefix_input,
+        )
+
         section_display = QLabel("DISPLAY")
         section_display.setObjectName("settingsSection")
 
@@ -297,8 +309,19 @@ class SettingsDialog(QDialog):
             self.doctor_name_input.setFocus()
             return
 
+        prefix = self.queue_prefix_input.text().strip().upper()
+        if prefix and (len(prefix) != 1 or not ("A" <= prefix <= "Z")):
+            QMessageBox.warning(
+                self,
+                "Lettera non valida",
+                "Inserisci una sola lettera da A a Z, oppure lascia il campo vuoto.",
+            )
+            self.queue_prefix_input.setFocus()
+            return
+
         self.saved_settings = {
             "doctor_name": doctor_name,
+            "queue_prefix": prefix,
             "display_fullscreen": (
                 self.fullscreen_checkbox.isChecked()
             ),

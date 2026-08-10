@@ -14,16 +14,18 @@ from PySide6.QtWidgets import (
 
 class StudioCard(QFrame):
 
-    number_changed = Signal(int)
+    number_changed = Signal(int, str)
 
     def __init__(
         self,
         studio_name: str,
         number: int = 0,
+        queue_prefix: str = "",
     ) -> None:
         super().__init__()
 
         self._number = self._safe_number(number)
+        self._queue_prefix = self._clean_prefix(queue_prefix)
 
         self.setObjectName("studioCard")
 
@@ -59,7 +61,7 @@ class StudioCard(QFrame):
         self.name_label.setMaximumHeight(42)
 
         self.number_label = QLabel(
-            str(self._number)
+            self._formatted_number()
         )
         self.number_label.setObjectName(
             "studioCardNumber"
@@ -145,12 +147,14 @@ class StudioCard(QFrame):
 
     def increment(self) -> None:
         self._set_number_from_user(
-            self._number + 1
+            self._number + 1,
+            action="increment",
         )
 
     def decrement(self) -> None:
         self._set_number_from_user(
-            max(0, self._number - 1)
+            max(0, self._number - 1),
+            action="decrement",
         )
 
     def confirm_reset(self) -> None:
@@ -177,7 +181,10 @@ class StudioCard(QFrame):
         self.reset()
 
     def reset(self) -> None:
-        self._set_number_from_user(0)
+        self._set_number_from_user(
+            0,
+            action="reset",
+        )
 
     def set_number(
         self,
@@ -190,8 +197,15 @@ class StudioCard(QFrame):
 
         self._number = safe_number
         self.number_label.setText(
-            str(self._number)
+            self._formatted_number()
         )
+
+    def set_queue_prefix(self, queue_prefix: str) -> None:
+        clean_prefix = self._clean_prefix(queue_prefix)
+        if clean_prefix == self._queue_prefix:
+            return
+        self._queue_prefix = clean_prefix
+        self.number_label.setText(self._formatted_number())
 
     def set_studio_name(
         self,
@@ -206,6 +220,8 @@ class StudioCard(QFrame):
     def _set_number_from_user(
         self,
         number: int,
+        *,
+        action: str,
     ) -> None:
         safe_number = self._safe_number(number)
 
@@ -214,11 +230,12 @@ class StudioCard(QFrame):
 
         self._number = safe_number
         self.number_label.setText(
-            str(self._number)
+            self._formatted_number()
         )
 
         self.number_changed.emit(
-            self._number
+            self._number,
+            action,
         )
 
     def _apply_style(self) -> None:
@@ -294,6 +311,17 @@ class StudioCard(QFrame):
             }
             """
         )
+
+    def _formatted_number(self) -> str:
+        return f"{self._queue_prefix}{self._number}"
+
+    @staticmethod
+    def _clean_prefix(value: object) -> str:
+        text = str(value or "").strip().upper()
+        if not text:
+            return ""
+        first = text[0]
+        return first if "A" <= first <= "Z" else ""
 
     @staticmethod
     def _safe_number(

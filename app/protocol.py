@@ -245,6 +245,9 @@ def normalise_doctor_state(
     return {
         "doctor_id": doctor_id,
         "doctor_name": doctor_name,
+        "queue_prefix": clean_queue_prefix(
+            doctor_state.get("queue_prefix", "")
+        ),
         "number": number,
         "queue_active": bool(
             doctor_state.get(
@@ -270,11 +273,20 @@ def create_empty_doctor_state(
     return {
         "doctor_id": doctor_id,
         "doctor_name": "",
+        "queue_prefix": "",
         "number": 0,
         "queue_active": False,
         "online": False,
         "updated_at": 0.0,
     }
+
+
+def clean_queue_prefix(value: object) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    first = text[0]
+    return first if "A" <= first <= "Z" else ""
 
 
 def validate_doctor_id(
