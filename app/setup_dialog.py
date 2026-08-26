@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app.auth import create_password_record, validate_new_password
 from app.config import save_config
 
 
@@ -35,7 +36,7 @@ class SetupDialog(QDialog):
             "Configurazione iniziale"
         )
         self.setModal(True)
-        self.setFixedSize(480, 340)
+        self.setFixedSize(500, 460)
 
         title_label = QLabel(
             "Benvenuto in Gestione Turni"
@@ -90,6 +91,18 @@ class SetupDialog(QDialog):
         self.doctor_name_input.setMaxLength(60)
         self.doctor_name_input.setMinimumHeight(46)
 
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setPlaceholderText("Password personale")
+        self.password_input.setMaxLength(128)
+        self.password_input.setMinimumHeight(46)
+
+        self.password_confirm_input = QLineEdit()
+        self.password_confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_confirm_input.setPlaceholderText("Ripeti la password")
+        self.password_confirm_input.setMaxLength(128)
+        self.password_confirm_input.setMinimumHeight(46)
+
         form_layout = QFormLayout()
         form_layout.setVerticalSpacing(18)
         form_layout.addRow(
@@ -99,6 +112,14 @@ class SetupDialog(QDialog):
         form_layout.addRow(
             "Nome visualizzato:",
             self.doctor_name_input,
+        )
+        form_layout.addRow(
+            "Password:",
+            self.password_input,
+        )
+        form_layout.addRow(
+            "Conferma password:",
+            self.password_confirm_input,
         )
 
         self.save_button = QPushButton(
@@ -197,6 +218,29 @@ class SetupDialog(QDialog):
             self.doctor_name_input.setFocus()
             return
 
+        password = self.password_input.text()
+        password_confirmation = self.password_confirm_input.text()
+
+        password_error = validate_new_password(password)
+        if password_error is not None:
+            QMessageBox.warning(
+                self,
+                "Password non valida",
+                password_error,
+            )
+            self.password_input.setFocus()
+            return
+
+        if password != password_confirmation:
+            QMessageBox.warning(
+                self,
+                "Password diverse",
+                "Le due password non coincidono.",
+            )
+            self.password_confirm_input.clear()
+            self.password_confirm_input.setFocus()
+            return
+
         doctor_id = (
             self.forced_doctor_id
             or self.doctor_id_combo.currentData()
@@ -211,6 +255,7 @@ class SetupDialog(QDialog):
             "display_fullscreen": False,
             "display_show_clock": True,
         }
+        config.update(create_password_record(password))
 
         save_config(config)
         self.saved_config = config

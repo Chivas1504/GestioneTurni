@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.about_dialog import AboutDialog
+from app.password_dialogs import ChangePasswordDialog
 from app.resources import app_icon
 from app.version import APP_VERSION
 
@@ -29,12 +30,14 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
 
         self.saved_settings: dict[str, Any] | None = None
+        self._password_record: dict[str, object] | None = None
+        self.current_config = dict(current_config)
 
         self.setWindowTitle("Impostazioni")
         self.setWindowIcon(app_icon())
         self.setModal(True)
-        self.setMinimumSize(540, 470)
-        self.resize(580, 510)
+        self.setMinimumSize(560, 560)
+        self.resize(600, 600)
 
         title_label = QLabel("Impostazioni")
         title_label.setObjectName("settingsTitle")
@@ -119,6 +122,16 @@ class SettingsDialog(QDialog):
             )
         )
 
+        section_security = QLabel("SICUREZZA")
+        section_security.setObjectName("settingsSection")
+
+        self.change_password_button = QPushButton("Cambia password")
+        self.change_password_button.setObjectName("settingsPasswordButton")
+        self.change_password_button.setMinimumHeight(46)
+        self.change_password_button.clicked.connect(
+            self._change_password
+        )
+
         self.version_label = QLabel(
             f"Gestione Turni · Versione {APP_VERSION}"
         )
@@ -198,6 +211,10 @@ class SettingsDialog(QDialog):
             self.clock_checkbox
         )
 
+        main_layout.addSpacing(12)
+        main_layout.addWidget(section_security)
+        main_layout.addWidget(self.change_password_button)
+
         main_layout.addStretch()
         main_layout.addWidget(self.version_label)
         main_layout.addLayout(buttons_layout)
@@ -265,12 +282,14 @@ class SettingsDialog(QDialog):
                 font-weight: 700;
             }
 
-            QPushButton#settingsAboutButton {
+            QPushButton#settingsAboutButton,
+            QPushButton#settingsPasswordButton {
                 background-color: #dce8f1;
                 color: #234f6e;
             }
 
-            QPushButton#settingsAboutButton:hover {
+            QPushButton#settingsAboutButton:hover,
+            QPushButton#settingsPasswordButton:hover {
                 background-color: #cfdee9;
             }
 
@@ -292,6 +311,27 @@ class SettingsDialog(QDialog):
                 background-color: #19794f;
             }
             """
+        )
+
+    def _change_password(self) -> None:
+        dialog = ChangePasswordDialog(
+            current_config=self.current_config,
+            parent=self,
+        )
+
+        if (
+            dialog.exec()
+            != QDialog.DialogCode.Accepted
+            or dialog.password_record is None
+        ):
+            return
+
+        self._password_record = dialog.password_record
+        self.current_config.update(dialog.password_record)
+        QMessageBox.information(
+            self,
+            "Password aggiornata",
+            "La nuova password verrà salvata insieme alle impostazioni.",
         )
 
     def save_and_accept(self) -> None:
@@ -329,5 +369,8 @@ class SettingsDialog(QDialog):
                 self.clock_checkbox.isChecked()
             ),
         }
+
+        if self._password_record is not None:
+            self.saved_settings.update(self._password_record)
 
         self.accept()

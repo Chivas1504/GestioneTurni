@@ -14,6 +14,9 @@ DEFAULT_CONFIG = {
     "queue_active": False,
     "display_fullscreen": False,
     "display_show_clock": True,
+    "password_salt": "",
+    "password_hash": "",
+    "password_iterations": 390000,
 }
 
 
@@ -105,6 +108,16 @@ def load_config() -> dict[str, Any]:
                     True,
                 )
             ),
+            "password_salt": str(
+                data.get("password_salt", "")
+            ).strip(),
+            "password_hash": str(
+                data.get("password_hash", "")
+            ).strip(),
+            "password_iterations": int(
+                data.get("password_iterations", 390000)
+                or 390000
+            ),
         }
 
     except (
@@ -171,6 +184,16 @@ def save_config(
                 "display_show_clock",
                 True,
             )
+        ),
+        "password_salt": str(
+            config.get("password_salt", "")
+        ).strip(),
+        "password_hash": str(
+            config.get("password_hash", "")
+        ).strip(),
+        "password_iterations": int(
+            config.get("password_iterations", 390000)
+            or 390000
         ),
     }
 

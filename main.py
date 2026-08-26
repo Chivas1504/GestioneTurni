@@ -3,12 +3,14 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QDialog
 
-from app.config import load_config, set_active_profile
+from app.auth import password_is_set
+from app.config import load_config, save_config, set_active_profile
 from app.controller import AppController
 from app.logging_config import configure_logging, install_exception_hook
 from app.paths import ensure_data_directories, migrate_legacy_data
 from app.resources import app_icon
 from app.version import APP_NAME, APP_VERSION
+from app.password_dialogs import LoginDialog, SetPasswordDialog
 from app.profile_selection_dialog import ProfileSelectionDialog
 from app.setup_dialog import SetupDialog
 from app.storage import set_active_storage_profile
@@ -129,6 +131,34 @@ def main() -> None:
         if (
             setup_dialog.exec()
             != QDialog.DialogCode.Accepted
+        ):
+            sys.exit(0)
+
+        config = load_config()
+    elif not password_is_set(config):
+        set_password_dialog = SetPasswordDialog(
+            doctor_name=str(config.get("doctor_name", "")).strip(),
+        )
+
+        if (
+            set_password_dialog.exec()
+            != QDialog.DialogCode.Accepted
+            or set_password_dialog.password_record is None
+        ):
+            sys.exit(0)
+
+        config.update(set_password_dialog.password_record)
+        save_config(config)
+    else:
+        login_dialog = LoginDialog(
+            doctor_name=str(config.get("doctor_name", "")).strip(),
+            config=config,
+        )
+
+        if (
+            login_dialog.exec()
+            != QDialog.DialogCode.Accepted
+            or not login_dialog.authenticated
         ):
             sys.exit(0)
 
