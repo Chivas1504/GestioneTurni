@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.about_dialog import AboutDialog
+from app.patient_time_warning_dialog import PatientTimeWarningDialog
 from app.controller import AppController
 from app.resources import app_icon
 from app.version import APP_NAME, APP_VERSION
@@ -72,6 +73,13 @@ class MainWindow(QMainWindow):
             "Sincronizzazione in corso"
         )
         self.current_server_address = ""
+
+        # Stato dell'avviso a schermo intero. La chiave identifica
+        # il singolo paziente/avvio timer, così l'avviso compare
+        # una sola volta per paziente dopo che viene confermato.
+        self._patient_warning_dialog = None
+        self._patient_warning_key = None
+        self._patient_warning_acknowledged_key = None
 
         self.setWindowTitle(
             f"{APP_NAME} {APP_VERSION} - {self.doctor_name}"
@@ -175,13 +183,12 @@ class MainWindow(QMainWindow):
         timer_state = self.controller.get_current_patient_timer()
 
         if not timer_state.get("active", False):
+            self._reset_patient_warning_state()
             self.patient_timer_label.setText(
                 "Tempo paziente: —"
             )
-            self.patient_timer_label.setProperty(
-                "active",
-                False,
-            )
+            self.patient_timer_label.setProperty("active", False)
+            self.patient_timer_label.setProperty("warning", False)
             self._refresh_widget_style(
                 self.patient_timer_label
             )
@@ -196,18 +203,103 @@ class MainWindow(QMainWindow):
         hours, remainder = divmod(elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
         ticket = str(timer_state.get("ticket", "")).strip()
+        elapsed_text = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        self.patient_timer_label.setText(
-            f"Tempo paziente {ticket}: "
-            f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        # La combinazione ticket + timestamp di avvio distingue anche
+        # due pazienti con lo stesso numero in sessioni differenti.
+        warning_key = f"{ticket}|{started_at:.6f}"
+        if warning_key != self._patient_warning_key:
+            self._close_patient_warning_dialog()
+            self._patient_warning_key = warning_key
+            self._patient_warning_acknowledged_key = None
+
+        warning_enabled = bool(
+            self.controller.config.get("patient_time_warning_enabled", False)
         )
-        self.patient_timer_label.setProperty(
-            "active",
-            True,
+        try:
+            warning_minutes = int(
+                self.controller.config.get("patient_time_warning_minutes", 15)
+            )
+        except (TypeError, ValueError):
+            warning_minutes = 15
+        warning_minutes = max(1, min(warning_minutes, 240))
+        warning_active = (
+            warning_enabled
+            and elapsed >= warning_minutes * 60
         )
+
+        if warning_active:
+            self.patient_timer_label.setText(
+                f"⚠ Tempo paziente {ticket}: "
+                f"{elapsed_text} · "
+                f"Soglia {warning_minutes} min superata"
+            )
+            self._show_patient_time_warning(
+                warning_key=warning_key,
+                ticket=ticket,
+                elapsed_text=elapsed_text,
+                warning_minutes=warning_minutes,
+            )
+        else:
+            self.patient_timer_label.setText(
+                f"Tempo paziente {ticket}: "
+                f"{elapsed_text}"
+            )
+
+        self.patient_timer_label.setProperty("active", True)
+        self.patient_timer_label.setProperty("warning", warning_active)
         self._refresh_widget_style(
             self.patient_timer_label
         )
+
+    def _show_patient_time_warning(
+        self,
+        warning_key: str,
+        ticket: str,
+        elapsed_text: str,
+        warning_minutes: int,
+    ) -> None:
+        if self._patient_warning_acknowledged_key == warning_key:
+            return
+
+        if self._patient_warning_dialog is not None:
+            return
+
+        dialog = PatientTimeWarningDialog(
+            ticket=ticket,
+            elapsed_text=elapsed_text,
+            threshold_minutes=warning_minutes,
+            parent=self,
+        )
+        self._patient_warning_dialog = dialog
+        dialog.finished.connect(
+            lambda _result, key=warning_key, dlg=dialog:
+                self._on_patient_warning_finished(key, dlg)
+        )
+        dialog.show_warning()
+
+    def _on_patient_warning_finished(
+        self,
+        warning_key: str,
+        dialog: PatientTimeWarningDialog,
+    ) -> None:
+        if self._patient_warning_dialog is dialog:
+            self._patient_warning_dialog = None
+        self._patient_warning_acknowledged_key = warning_key
+
+    def _close_patient_warning_dialog(self) -> None:
+        dialog = self._patient_warning_dialog
+        self._patient_warning_dialog = None
+        if dialog is None:
+            return
+
+        dialog._allow_close = True
+        dialog.close()
+
+    def _reset_patient_warning_state(self) -> None:
+        self._close_patient_warning_dialog()
+        self._patient_warning_key = None
+        self._patient_warning_acknowledged_key = None
 
     def _build_queue_controls(self) -> None:
         self.queue_status_label = QLabel()
@@ -722,6 +814,13 @@ class MainWindow(QMainWindow):
 
         QLabel#patientTimerLabel[active="true"] {
             color: #17689c;
+        }
+
+        QLabel#patientTimerLabel[warning="true"] {
+            color: #b42318;
+            background-color: #fee4e2;
+            border: 1px solid #fda29b;
+            border-radius: 8px;
         }
 
         QLabel#networkSummary {

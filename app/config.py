@@ -17,6 +17,8 @@ DEFAULT_CONFIG = {
     "password_salt": "",
     "password_hash": "",
     "password_iterations": 390000,
+    "patient_time_warning_enabled": False,
+    "patient_time_warning_minutes": 15,
 }
 
 
@@ -118,6 +120,12 @@ def load_config() -> dict[str, Any]:
                 data.get("password_iterations", 390000)
                 or 390000
             ),
+            "patient_time_warning_enabled": bool(
+                data.get("patient_time_warning_enabled", False)
+            ),
+            "patient_time_warning_minutes": _safe_warning_minutes(
+                data.get("patient_time_warning_minutes", 15)
+            ),
         }
 
     except (
@@ -195,6 +203,12 @@ def save_config(
             config.get("password_iterations", 390000)
             or 390000
         ),
+        "patient_time_warning_enabled": bool(
+            config.get("patient_time_warning_enabled", False)
+        ),
+        "patient_time_warning_minutes": _safe_warning_minutes(
+            config.get("patient_time_warning_minutes", 15)
+        ),
     }
 
     config_file = get_config_file()
@@ -223,3 +237,11 @@ def _clean_queue_prefix(value: object) -> str:
         return ""
     first = text[0]
     return first if "A" <= first <= "Z" else ""
+
+
+def _safe_warning_minutes(value: object) -> int:
+    try:
+        minutes = int(value)
+    except (TypeError, ValueError):
+        minutes = 15
+    return max(1, min(minutes, 240))

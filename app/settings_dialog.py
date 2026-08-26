@@ -12,7 +12,10 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
+    QScrollArea,
+    QWidget,
 )
 
 from app.about_dialog import AboutDialog
@@ -36,8 +39,8 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Impostazioni")
         self.setWindowIcon(app_icon())
         self.setModal(True)
-        self.setMinimumSize(560, 560)
-        self.resize(600, 600)
+        self.setMinimumSize(560, 620)
+        self.resize(650, 780)
 
         title_label = QLabel("Impostazioni")
         title_label.setObjectName("settingsTitle")
@@ -122,6 +125,37 @@ class SettingsDialog(QDialog):
             )
         )
 
+        section_timer = QLabel("TEMPO PAZIENTE")
+        section_timer.setObjectName("settingsSection")
+
+        self.patient_warning_checkbox = QCheckBox(
+            "Avvisa quando il tempo del paziente supera la soglia"
+        )
+        self.patient_warning_checkbox.setChecked(
+            bool(current_config.get("patient_time_warning_enabled", False))
+        )
+
+        self.patient_warning_minutes = QSpinBox()
+        self.patient_warning_minutes.setRange(1, 240)
+        self.patient_warning_minutes.setSuffix(" min")
+        self.patient_warning_minutes.setMinimumHeight(46)
+        self.patient_warning_minutes.setValue(
+            max(1, min(int(current_config.get("patient_time_warning_minutes", 15) or 15), 240))
+        )
+        self.patient_warning_minutes.setEnabled(
+            self.patient_warning_checkbox.isChecked()
+        )
+        self.patient_warning_checkbox.toggled.connect(
+            self.patient_warning_minutes.setEnabled
+        )
+
+        timer_form = QFormLayout()
+        timer_form.setVerticalSpacing(14)
+        timer_form.addRow(
+            "Soglia avviso:",
+            self.patient_warning_minutes,
+        )
+
         section_security = QLabel("SICUREZZA")
         section_security.setObjectName("settingsSection")
 
@@ -188,34 +222,57 @@ class SettingsDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(
-            34,
-            28,
-            34,
-            28,
+            24,
+            20,
+            24,
+            20,
         )
-        main_layout.setSpacing(16)
+        main_layout.setSpacing(12)
 
         main_layout.addWidget(title_label)
         main_layout.addWidget(description_label)
-        main_layout.addSpacing(8)
 
-        main_layout.addWidget(section_doctor)
-        main_layout.addLayout(doctor_form)
-
-        main_layout.addSpacing(12)
-        main_layout.addWidget(section_display)
-        main_layout.addWidget(
-            self.fullscreen_checkbox
-        )
-        main_layout.addWidget(
-            self.clock_checkbox
+        # Le impostazioni possono crescere nel tempo.
+        # Le rendiamo scorrevoli, lasciando sempre visibili
+        # versione e pulsanti di azione in basso.
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
-        main_layout.addSpacing(12)
-        main_layout.addWidget(section_security)
-        main_layout.addWidget(self.change_password_button)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(
+            10,
+            10,
+            10,
+            10,
+        )
+        scroll_layout.setSpacing(14)
 
-        main_layout.addStretch()
+        scroll_layout.addWidget(section_doctor)
+        scroll_layout.addLayout(doctor_form)
+
+        scroll_layout.addSpacing(8)
+        scroll_layout.addWidget(section_display)
+        scroll_layout.addWidget(self.fullscreen_checkbox)
+        scroll_layout.addWidget(self.clock_checkbox)
+
+        scroll_layout.addSpacing(8)
+        scroll_layout.addWidget(section_timer)
+        scroll_layout.addWidget(self.patient_warning_checkbox)
+        scroll_layout.addLayout(timer_form)
+
+        scroll_layout.addSpacing(8)
+        scroll_layout.addWidget(section_security)
+        scroll_layout.addWidget(self.change_password_button)
+        scroll_layout.addStretch()
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area, 1)
+
         main_layout.addWidget(self.version_label)
         main_layout.addLayout(buttons_layout)
 
@@ -223,6 +280,11 @@ class SettingsDialog(QDialog):
             """
             QDialog {
                 background-color: #eef3f8;
+            }
+
+            QScrollArea, QScrollArea > QWidget > QWidget {
+                background-color: transparent;
+                border: none;
             }
 
             QLabel#settingsTitle {
@@ -249,7 +311,7 @@ class SettingsDialog(QDialog):
                 letter-spacing: 2px;
             }
 
-            QLineEdit {
+            QLineEdit, QSpinBox {
                 background-color: white;
                 color: #213d53;
                 border: 1px solid #cbd8e3;
@@ -258,7 +320,7 @@ class SettingsDialog(QDialog):
                 font-size: 16px;
             }
 
-            QLineEdit:focus {
+            QLineEdit:focus, QSpinBox:focus {
                 border: 2px solid #218b5d;
             }
 
@@ -367,6 +429,12 @@ class SettingsDialog(QDialog):
             ),
             "display_show_clock": (
                 self.clock_checkbox.isChecked()
+            ),
+            "patient_time_warning_enabled": (
+                self.patient_warning_checkbox.isChecked()
+            ),
+            "patient_time_warning_minutes": (
+                self.patient_warning_minutes.value()
             ),
         }
 
