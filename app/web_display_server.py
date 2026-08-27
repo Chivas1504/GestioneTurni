@@ -258,45 +258,86 @@ DISPLAY_HTML = r"""<!doctype html>
             color: #fff;
         }
         .screen { height: 100%; display: flex; flex-direction: column; padding: 3vh 4vw 2.5vh; }
-        header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 11vh; }
-        .brand { font-size: clamp(30px, 3.2vw, 58px); font-weight: 900; letter-spacing: .08em; }
-        .subtitle { color: #b9d8ec; font-size: clamp(18px, 1.5vw, 30px); text-align: center; }
-        #clock { justify-self: end; font-size: clamp(30px, 3vw, 54px); font-weight: 800; font-variant-numeric: tabular-nums; }
-        #cards { flex: 1; display: grid; gap: 2.5vw; align-items: stretch; min-height: 0; }
-        #cards.one { grid-template-columns: minmax(0, 1fr); padding: 0 16vw; }
-        #cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        header { display: flex; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-content: space-between; min-height: 11vh; }
+        .brand { font-size: 48px; font-size: clamp(30px, 3.2vw, 58px); font-weight: 900; letter-spacing: .08em; }
+        .subtitle { color: #b9d8ec; font-size: 26px; font-size: clamp(18px, 1.5vw, 30px); text-align: center; }
+        #clock { justify-self: end; font-size: 46px; font-size: clamp(30px, 3vw, 54px); font-weight: 800; font-variant-numeric: tabular-nums; }
+        /* Layout legacy per browser Smart TV datati.
+           Le due schede usano float: niente Grid, Flex o table-cell. */
+        #cards {
+            display: block;
+            width: 100%;
+            height: 76vh;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #cards.one {
+            display: block;
+            padding: 0;
+            text-align: center;
+        }
+        #cards.one .card {
+            display: inline-block;
+            width: 68%;
+            height: 100%;
+            vertical-align: top;
+            float: none;
+        }
+        #cards.two {
+            display: block;
+            padding: 0;
+        }
+        #cards.two .card {
+            display: block;
+            width: 48.75%;
+            height: 100%;
+            vertical-align: top;
+        }
+        #cards.two .doctor1 {
+            float: left;
+        }
+        #cards.two .doctor2 {
+            float: right;
+        }
         .card {
             background: #f7fafc;
             border-radius: 30px;
             color: #183b56;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             padding: 3vh 3vw;
             box-shadow: 0 22px 50px rgba(0,0,0,.25);
             min-width: 0;
+            text-align: center;
+            overflow: hidden;
         }
         .card.doctor1 { border-top: 16px solid #2e7db8; }
         .card.doctor2 { border-top: 16px solid #2a9b6c; }
-        .doctor-name { font-size: clamp(32px, 4vw, 70px); font-weight: 900; text-align: center; overflow-wrap: anywhere; }
-        .called { color: #6c8192; font-size: clamp(15px, 1.4vw, 25px); font-weight: 800; letter-spacing: .18em; margin-top: 3vh; }
-        .number { color: #145f91; font-size: clamp(170px, 25vh, 360px); line-height: .95; font-weight: 900; font-variant-numeric: tabular-nums; }
+        .doctor-name { width: 100%; font-size: 56px; font-size: clamp(32px, 4vw, 70px); font-weight: 900; text-align: center; overflow-wrap: anywhere; }
+        .called { width: 100%; color: #6c8192; font-size: 22px; font-size: clamp(15px, 1.4vw, 25px); font-weight: 800; letter-spacing: .18em; margin-top: 3vh; text-align: center; }
+        .number { display: block; width: 100%; color: #145f91; font-size: 260px; font-size: clamp(170px, 25vh, 360px); line-height: .95; font-weight: 900; font-variant-numeric: tabular-nums; text-align: center; margin-left: 0; margin-right: 0; }
         .doctor2 .number { color: #167449; }
-        .status { color: #60758a; font-size: clamp(18px, 1.7vw, 30px); font-weight: 600; }
+        .status { width: 100%; color: #60758a; font-size: 26px; font-size: clamp(18px, 1.7vw, 30px); font-weight: 600; text-align: center; }
         .empty, .connection {
             flex: 1; margin: 2vh 10vw; border: 1px solid rgba(255,255,255,.18); border-radius: 28px;
             display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
             background: rgba(255,255,255,.06); padding: 5vh 5vw;
         }
-        .empty h1, .connection h1 { font-size: clamp(38px, 5vw, 80px); margin: 0 0 2vh; }
-        .empty p, .connection p { color: #bddbf2; font-size: clamp(22px, 2.2vw, 38px); margin: 0; }
-        footer { min-height: 7vh; display: flex; justify-content: center; align-items: end; color: #dcecf8; font-size: clamp(16px, 1.5vw, 26px); }
+        .empty h1, .connection h1 { font-size: 64px; font-size: clamp(38px, 5vw, 80px); margin: 0 0 2vh; }
+        .empty p, .connection p { color: #bddbf2; font-size: 32px; font-size: clamp(22px, 2.2vw, 38px); margin: 0; }
+        footer { min-height: 7vh; display: flex; justify-content: center; align-items: flex-end; color: #dcecf8; font-size: 22px; font-size: clamp(16px, 1.5vw, 26px); }
         #technical { opacity: .75; }
         @media (max-width: 900px) {
-            #cards.one { padding: 0; }
-            .screen { padding-left: 3vw; padding-right: 3vw; }
+            #cards.one .card { width: 78%; }
+            #cards.two .card { width: 49%; }
+            .screen { padding-left: 2vw; padding-right: 2vw; }
+            .doctor-name { font-size: 30px; }
+            .number { font-size: 150px; }
         }
+
+        /* Layout critico Smart TV: vera tabella HTML, non CSS grid/flex/float. */
+        .legacy-table { width: 100%; height: 76vh; border-collapse: separate; border-spacing: 12px 0; table-layout: fixed; }
+        .legacy-cell { width: 50%; height: 100%; vertical-align: top; text-align: center; padding: 0; }
+        .legacy-cell .card { width: 100%; height: 100%; display: block; float: none !important; margin: 0; text-align: center; }
+        .legacy-number { width: 100%; text-align: center !important; margin-left: auto; margin-right: auto; }
     </style>
 </head>
 <body>
@@ -310,325 +351,356 @@ DISPLAY_HTML = r"""<!doctype html>
         <h1>Connessione in corso</h1>
         <p>Ricerca del computer che gestisce i turni…</p>
     </main>
-    <footer><span id="technical">Display automatico</span></footer>
+    <footer><span id="technical">Display automatico</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span>Display 1.6.5</span></footer>
 </div>
 <script>
-(() => {
-    const STORAGE_KEY = "gestioneTurniDisplayCandidatesV1";
-    const PORT = 8080;
+(function () {
+    "use strict";
 
-    const POLL_INTERVAL_MS = 1000;
-    const REQUEST_TIMEOUT_MS = 2500;
-    const DISCONNECTED_AFTER_MS = 5000;
+    var STORAGE_KEY = "gestioneTurniDisplayCandidatesV1";
+    var PORT = 8080;
+    var POLL_INTERVAL_MS = 1000;
+    var REQUEST_TIMEOUT_MS = 2500;
+    var DISCONNECTED_AFTER_MS = 5000;
 
-    const content = document.getElementById("content");
-    const technical = document.getElementById("technical");
+    var content = document.getElementById("content");
+    var technical = document.getElementById("technical");
+    var clock = document.getElementById("clock");
 
-    let activeBase = window.location.origin;
-    let polling = false;
-    let lastSuccessfulConnection = 0;
-    let disconnectedVisible = false;
+    var currentOrigin = window.location.protocol + "//" + window.location.host;
+    var activeBase = currentOrigin;
+    var polling = false;
+    var lastSuccessfulConnection = 0;
+    var disconnectedVisible = false;
 
-    const cleanHost = value => {
-        const text = String(value || "").trim();
+    function trimText(value) {
+        return String(value || "").replace(/^\s+|\s+$/g, "");
+    }
+
+    function cleanHost(value) {
+        var text = trimText(value);
         return /^\d{1,3}(\.\d{1,3}){3}$/.test(text) ? text : "";
-    };
+    }
 
-    const endpointFor = host => `http://${host}:${PORT}`;
+    function endpointFor(host) {
+        return "http://" + host + ":" + PORT;
+    }
 
-    const loadCandidates = () => {
-        const result = [window.location.origin];
+    function contains(list, value) {
+        var index;
+        for (index = 0; index < list.length; index += 1) {
+            if (list[index] === value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function uniqueValues(values, limit) {
+        var result = [];
+        var index;
+        var value;
+
+        for (index = 0; index < values.length; index += 1) {
+            value = values[index];
+            if (value && !contains(result, value)) {
+                result.push(value);
+                if (limit && result.length >= limit) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    function loadCandidates() {
+        var result = [currentOrigin];
+        var stored;
+        var index;
 
         try {
-            const stored = JSON.parse(
-                localStorage.getItem(STORAGE_KEY) || "[]"
-            );
-
-            if (Array.isArray(stored)) {
-                result.push(...stored);
+            stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            if (Object.prototype.toString.call(stored) === "[object Array]") {
+                for (index = 0; index < stored.length; index += 1) {
+                    result.push(stored[index]);
+                }
             }
-        } catch (_) {}
+        } catch (ignore) {}
 
-        return [...new Set(result.filter(Boolean))];
-    };
+        return uniqueValues(result, 8);
+    }
 
-    const saveCandidates = values => {
-        const bases = [];
+    function saveCandidates(values) {
+        var bases = [];
+        var index;
+        var host;
+        var unique;
 
-        for (const value of values || []) {
-            const host = cleanHost(value);
+        values = values || [];
 
+        for (index = 0; index < values.length; index += 1) {
+            host = cleanHost(values[index]);
             if (host) {
                 bases.push(endpointFor(host));
             }
         }
 
-        bases.push(window.location.origin, activeBase);
-
-        const unique = [...new Set(
-            bases.filter(Boolean)
-        )].slice(0, 8);
+        bases.push(currentOrigin);
+        bases.push(activeBase);
+        unique = uniqueValues(bases, 8);
 
         try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(unique)
-            );
-        } catch (_) {}
-    };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(unique));
+        } catch (ignore) {}
+    }
 
-    const fetchState = async base => {
-        const controller = new AbortController();
-
-        const timeout = setTimeout(
-            () => controller.abort(),
-            REQUEST_TIMEOUT_MS
-        );
+    function requestState(base, callback) {
+        var xhr;
+        var finished = false;
+        var timeoutId;
 
         try {
-            const response = await fetch(
-                `${base}/api/state?t=${Date.now()}`,
-                {
-                    cache: "no-store",
-                    signal: controller.signal
-                }
-            );
-
-            if (!response.ok) {
-                return null;
-            }
-
-            return await response.json();
-        } catch (_) {
-            return null;
-        } finally {
-            clearTimeout(timeout);
-        }
-    };
-
-    const findServer = async () => {
-        const initialBases = [
-            activeBase,
-            ...loadCandidates()
-        ];
-
-        const visited = new Set();
-
-        const queue = [
-            ...new Set(initialBases.filter(Boolean))
-        ];
-
-        while (queue.length && visited.size < 10) {
-            const base = queue.shift();
-
-            if (!base || visited.has(base)) {
-                continue;
-            }
-
-            visited.add(base);
-
-            const payload = await fetchState(base);
-
-            if (!payload) {
-                continue;
-            }
-
-            saveCandidates(payload.candidates);
-
-            for (const address of payload.candidates || []) {
-                const host = cleanHost(address);
-                const candidateBase = host
-                    ? endpointFor(host)
-                    : "";
-
-                if (
-                    candidateBase &&
-                    !visited.has(candidateBase)
-                ) {
-                    queue.push(candidateBase);
-                }
-            }
-
-            const serverHost = cleanHost(
-                payload.server_address
-            );
-
-            if (serverHost) {
-                const serverBase = endpointFor(serverHost);
-
-                if (!visited.has(serverBase)) {
-                    queue.unshift(serverBase);
-                }
-            }
-
-            if (payload.role === "server") {
-                activeBase = base;
-                return payload;
-            }
+            xhr = new XMLHttpRequest();
+        } catch (error) {
+            callback(null);
+            return;
         }
 
-        return null;
-    };
+        function finish(payload) {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
+            callback(payload);
+        }
 
-    const escapeHtml = value => String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+        try {
+            xhr.open("GET", base + "/api/state?t=" + new Date().getTime(), true);
+            xhr.onreadystatechange = function () {
+                var payload;
 
-    const doctorCard = doctor => `
-        <section class="card ${escapeHtml(doctor.doctor_id)}">
-            <div class="doctor-name">
-                ${escapeHtml(
-                    doctor.doctor_name || "Medico"
-                )}
-            </div>
+                if (xhr.readyState !== 4) {
+                    return;
+                }
 
-            <div class="called">
-                NUMERO CHIAMATO
-            </div>
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        payload = JSON.parse(xhr.responseText);
+                    } catch (error) {
+                        payload = null;
+                    }
+                    finish(payload);
+                } else {
+                    finish(null);
+                }
+            };
 
-            <div class="number">
-                ${escapeHtml(
-                    `${String(doctor.queue_prefix || "").trim().toUpperCase().slice(0, 1)}${
-                        Number.isFinite(Number(doctor.number))
-                            ? Math.max(0, parseInt(doctor.number, 10))
-                            : 0
-                    }`
-                )}
-            </div>
+            timeoutId = window.setTimeout(function () {
+                try {
+                    xhr.abort();
+                } catch (ignore) {}
+                finish(null);
+            }, REQUEST_TIMEOUT_MS);
 
-            <div class="status">
-                Coda attiva
-            </div>
-        </section>
-    `;
+            xhr.send(null);
+        } catch (error) {
+            finish(null);
+        }
+    }
 
-    const render = payload => {
-        const state = payload && payload.state
-            ? payload.state
-            : {};
+    function findServer(callback) {
+        var queue = uniqueValues([activeBase].concat(loadCandidates()), 10);
+        var visited = [];
 
-        const activeDoctors = [
-            state.doctor1,
-            state.doctor2
-        ].filter(
-            doctor => doctor && doctor.queue_active
-        );
+        function next() {
+            var base;
+
+            if (!queue.length || visited.length >= 10) {
+                callback(null);
+                return;
+            }
+
+            base = queue.shift();
+
+            if (!base || contains(visited, base)) {
+                next();
+                return;
+            }
+
+            visited.push(base);
+
+            requestState(base, function (payload) {
+                var candidates;
+                var index;
+                var host;
+                var candidateBase;
+                var serverHost;
+                var serverBase;
+
+                if (!payload) {
+                    next();
+                    return;
+                }
+
+                candidates = payload.candidates || [];
+                saveCandidates(candidates);
+
+                for (index = 0; index < candidates.length; index += 1) {
+                    host = cleanHost(candidates[index]);
+                    candidateBase = host ? endpointFor(host) : "";
+                    if (candidateBase && !contains(visited, candidateBase) && !contains(queue, candidateBase)) {
+                        queue.push(candidateBase);
+                    }
+                }
+
+                serverHost = cleanHost(payload.server_address);
+                if (serverHost) {
+                    serverBase = endpointFor(serverHost);
+                    if (!contains(visited, serverBase) && !contains(queue, serverBase)) {
+                        queue.unshift(serverBase);
+                    }
+                }
+
+                if (payload.role === "server") {
+                    activeBase = base;
+                    callback(payload);
+                    return;
+                }
+
+                next();
+            });
+        }
+
+        next();
+    }
+
+    function escapeHtml(value) {
+        return String(value === null || typeof value === "undefined" ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function displayNumber(doctor) {
+        var prefix = trimText(doctor.queue_prefix || "").toUpperCase().slice(0, 1);
+        var number = parseInt(doctor.number, 10);
+
+        if (isNaN(number) || number < 0) {
+            number = 0;
+        }
+
+        return prefix + number;
+    }
+
+    function doctorCard(doctor) {
+        return "<div class=\"card " + escapeHtml(doctor.doctor_id) + "\" style=\"width:100%;height:100%;text-align:center;float:none;margin:0;\">" +
+            "<div class=\"doctor-name\" style=\"width:100%;text-align:center;\">" + escapeHtml(doctor.doctor_name || "Medico") + "</div>" +
+            "<div class=\"called\" style=\"width:100%;text-align:center;\">NUMERO CHIAMATO</div>" +
+            "<div class=\"number legacy-number\" align=\"center\" style=\"display:block;width:100%;text-align:center;margin-left:auto;margin-right:auto;\">" + escapeHtml(displayNumber(doctor)) + "</div>" +
+            "<div class=\"status\" style=\"width:100%;text-align:center;\">Coda attiva</div>" +
+            "</div>";
+    }
+
+    function render(payload) {
+        var state = payload && payload.state ? payload.state : {};
+        var activeDoctors = [];
+        var html = "";
+        var serverLabel;
+        var index;
+
+        if (state.doctor1 && state.doctor1.queue_active) {
+            activeDoctors.push(state.doctor1);
+        }
+        if (state.doctor2 && state.doctor2.queue_active) {
+            activeDoctors.push(state.doctor2);
+        }
 
         if (!activeDoctors.length) {
             content.id = "content";
             content.className = "empty";
-
-            content.innerHTML = `
-                <h1>In attesa</h1>
-                <p>
-                    Premendo Inizia coda sul PC,
-                    il display comparirà automaticamente.
-                </p>
-            `;
+            content.innerHTML = "<h1>In attesa</h1>" +
+                "<p>Premendo Inizia coda sul PC, il display comparirà automaticamente.</p>";
         } else {
             content.id = "cards";
+            content.className = "cards " + (activeDoctors.length === 1 ? "one" : "two");
 
-            content.className = `cards ${
-                activeDoctors.length === 1
-                    ? "one"
-                    : "two"
-            }`;
-
-            content.innerHTML = activeDoctors
-                .map(doctorCard)
-                .join("");
+            if (activeDoctors.length === 2) {
+                html = "<table class=\"legacy-table\" width=\"100%\" height=\"100%\" cellspacing=\"12\" cellpadding=\"0\" border=\"0\" style=\"width:100%;height:100%;table-layout:fixed;border-collapse:separate;\">" +
+                    "<tr>" +
+                    "<td class=\"legacy-cell\" width=\"50%\" align=\"center\" valign=\"top\" style=\"width:50%;height:100%;text-align:center;vertical-align:top;padding:0;\">" + doctorCard(activeDoctors[0]) + "</td>" +
+                    "<td class=\"legacy-cell\" width=\"50%\" align=\"center\" valign=\"top\" style=\"width:50%;height:100%;text-align:center;vertical-align:top;padding:0;\">" + doctorCard(activeDoctors[1]) + "</td>" +
+                    "</tr></table>";
+            } else {
+                html = "<table width=\"100%\" height=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;height:100%;table-layout:fixed;\"><tr>" +
+                    "<td width=\"16%\"></td>" +
+                    "<td width=\"68%\" align=\"center\" valign=\"top\" style=\"width:68%;height:100%;text-align:center;vertical-align:top;\">" + doctorCard(activeDoctors[0]) + "</td>" +
+                    "<td width=\"16%\"></td>" +
+                    "</tr></table>";
+            }
+            content.innerHTML = html;
         }
 
-        technical.textContent =
-            `Connesso al server ${
-                payload.server_address ||
-                payload.local_address ||
-                "locale"
-            }`;
-
+        serverLabel = payload.server_address || payload.local_address || "locale";
+        technical.innerHTML = "Connesso al server " + escapeHtml(serverLabel);
         disconnectedVisible = false;
-    };
+    }
 
-    const renderDisconnected = () => {
+    function renderDisconnected() {
         if (disconnectedVisible) {
             return;
         }
 
         disconnectedVisible = true;
-
         content.id = "content";
         content.className = "connection";
+        content.innerHTML = "<h1>Connessione in corso</h1>" +
+            "<p>Il server sta cambiando oppure non è raggiungibile. Riprovo automaticamente…</p>";
+        technical.innerHTML = "Ricerca automatica del server";
+    }
 
-        content.innerHTML = `
-            <h1>Connessione in corso</h1>
-            <p>
-                Il server sta cambiando oppure non è
-                raggiungibile. Riprovo automaticamente…
-            </p>
-        `;
-
-        technical.textContent =
-            "Ricerca automatica del server";
-    };
-
-    const poll = async () => {
+    function poll() {
         if (polling) {
             return;
         }
 
         polling = true;
 
-        try {
-            const payload = await findServer();
+        findServer(function (payload) {
+            var disconnectedFor;
+
+            polling = false;
 
             if (payload) {
-                lastSuccessfulConnection = Date.now();
+                lastSuccessfulConnection = new Date().getTime();
                 render(payload);
                 return;
             }
 
-            const disconnectedFor =
-                Date.now() - lastSuccessfulConnection;
-
-            if (
-                lastSuccessfulConnection === 0 ||
-                disconnectedFor >= DISCONNECTED_AFTER_MS
-            ) {
+            disconnectedFor = new Date().getTime() - lastSuccessfulConnection;
+            if (lastSuccessfulConnection === 0 || disconnectedFor >= DISCONNECTED_AFTER_MS) {
                 renderDisconnected();
             }
-        } finally {
-            polling = false;
-        }
-    };
+        });
+    }
 
-    const updateClock = () => {
-        document.getElementById(
-            "clock"
-        ).textContent = new Date().toLocaleTimeString(
-            "it-IT",
-            {
-                hour: "2-digit",
-                minute: "2-digit"
-            }
-        );
-    };
+    function twoDigits(value) {
+        return value < 10 ? "0" + value : String(value);
+    }
+
+    function updateClock() {
+        var now = new Date();
+        clock.innerHTML = twoDigits(now.getHours()) + ":" + twoDigits(now.getMinutes());
+    }
 
     updateClock();
-
-    setInterval(
-        updateClock,
-        1000
-    );
-
+    window.setInterval(updateClock, 1000);
     poll();
-
-    setInterval(
-        poll,
-        POLL_INTERVAL_MS
-    );
+    window.setInterval(poll, POLL_INTERVAL_MS);
 })();
 </script>
 </body>
