@@ -9,7 +9,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
+    QWidget,
 )
 
 from app.history_statistics import get_personal_dashboard
@@ -115,13 +117,25 @@ class DashboardDialog(QDialog):
         self.setWindowTitle(
             "Dashboard personale"
         )
+        # La dashboard deve restare utilizzabile anche su schermi con
+        # risoluzione ridotta o ridimensionamento Windows elevato.
         self.setMinimumSize(
-            1050,
-            720,
+            760,
+            480,
+        )
+
+        available = self.screen().availableGeometry()
+        target_width = min(
+            1180,
+            max(760, int(available.width() * 0.90)),
+        )
+        target_height = min(
+            760,
+            max(480, int(available.height() * 0.86)),
         )
         self.resize(
-            1180,
-            800,
+            target_width,
+            target_height,
         )
 
         self._build_interface()
@@ -366,6 +380,12 @@ class DashboardDialog(QDialog):
         )
 
         buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(
+            30,
+            10,
+            30,
+            14,
+        )
         buttons_layout.setSpacing(12)
         buttons_layout.addStretch()
         buttons_layout.addWidget(
@@ -378,52 +398,97 @@ class DashboardDialog(QDialog):
             self.close_button
         )
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(
+        # Contenuto scorrevole: evita che la parte alta della dashboard
+        # finisca fuori dallo schermo su PC con scaling 125%/150%.
+        content_widget = QWidget()
+        content_widget.setObjectName(
+            "dashboardScrollContent"
+        )
+        content_layout = QVBoxLayout(
+            content_widget
+        )
+        content_layout.setContentsMargins(
             30,
             24,
             30,
-            26,
+            18,
         )
-        main_layout.setSpacing(15)
+        content_layout.setSpacing(15)
 
-        main_layout.addWidget(
+        content_layout.addWidget(
             title_label
         )
-        main_layout.addWidget(
+        content_layout.addWidget(
             self.doctor_label
         )
-        main_layout.addWidget(
+        content_layout.addWidget(
             self.queue_status_label
         )
 
-        main_layout.addSpacing(4)
-        main_layout.addWidget(
+        content_layout.addSpacing(4)
+        content_layout.addWidget(
             today_section
         )
-        main_layout.addLayout(
+        content_layout.addLayout(
             today_grid
         )
 
-        main_layout.addSpacing(6)
-        main_layout.addWidget(
+        content_layout.addSpacing(6)
+        content_layout.addWidget(
             month_section
         )
-        main_layout.addLayout(
+        content_layout.addLayout(
             month_grid
         )
 
-        main_layout.addSpacing(6)
-        main_layout.addWidget(
+        content_layout.addSpacing(6)
+        content_layout.addWidget(
             last_session_section
         )
-        main_layout.addWidget(
+        content_layout.addWidget(
             self.last_session_frame
         )
+        content_layout.addStretch()
 
-        main_layout.addStretch()
-        main_layout.addLayout(
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName(
+            "dashboardScrollArea"
+        )
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(
+            QFrame.Shape.NoFrame
+        )
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_area.setWidget(
+            content_widget
+        )
+
+        # Il footer resta sempre visibile; si scorre solo la dashboard.
+        footer = QWidget()
+        footer.setObjectName(
+            "dashboardFooter"
+        )
+        footer.setLayout(
             buttons_layout
+        )
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+        main_layout.setSpacing(0)
+        main_layout.addWidget(
+            self.scroll_area,
+            1,
+        )
+        main_layout.addWidget(
+            footer,
+            0,
         )
 
     def _connect_controller(self) -> None:
@@ -763,6 +828,18 @@ class DashboardDialog(QDialog):
             """
             QDialog {
                 background-color: #eef3f8;
+            }
+
+            QScrollArea#dashboardScrollArea,
+            QScrollArea#dashboardScrollArea > QWidget > QWidget,
+            QWidget#dashboardScrollContent {
+                background-color: #eef3f8;
+                border: none;
+            }
+
+            QWidget#dashboardFooter {
+                background-color: #eef3f8;
+                border-top: 1px solid #d6e1ea;
             }
 
             QLabel#dashboardTitle {

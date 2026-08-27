@@ -1,9 +1,14 @@
-Gestione Turni 1.6.5 - Smart TV legacy definitivo
+Gestione Turni v1.6.6 - Dashboard adattiva
 
-Correzioni:
-- due code generate con vera tabella HTML a due colonne, compatibile con browser Smart TV datati;
-- numero chiamato centrato con attributi HTML e stile inline, non solo CSS;
-- indicatore "Display 1.6.5" nel footer per verificare che la TV stia caricando la pagina aggiornata.
+Base: v1.6.5. Questa patch NON include ancora il suono Smart TV.
 
-Sovrascrivere i file mantenendo i percorsi, ricreare dist con PyInstaller e ricompilare Installer.iss.
-Chiudere e riaprire il browser della TV o ricaricare completamente la pagina.
+Modifiche:
+- Dashboard adattata all'area realmente disponibile dello schermo.
+- Ridotta la dimensione minima della finestra per PC con scaling Windows 125%/150%.
+- Contenuto Dashboard inserito in area scorrevole verticale.
+- I pulsanti Aggiorna, Storico completo e Chiudi restano sempre visibili in basso.
+- Nessuna modifica a statistiche, storico, code, Server/Client o display TV.
+
+Copia i file nel progetto v1.6.5 mantenendo le cartelle, poi ricrea build/dist con PyInstaller e compila Installer.iss con Inno Setup.
+
+Il precedente pacchetto 1.6.6 Audio Smart TV NON va applicato insieme a questo: il suono verra integrato nella successiva v1.6.7 dopo aver verificato la Dashboard.
