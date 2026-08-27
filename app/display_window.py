@@ -35,11 +35,7 @@ class DoctorDisplayCard(QFrame):
         self._number = number
         self._queue_prefix = self._clean_prefix(queue_prefix)
 
-        self.setObjectName(
-            "doctorCard1"
-            if doctor_id == "doctor1"
-            else "doctorCard2"
-        )
+        self.setObjectName("doctorCard")
 
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -288,18 +284,10 @@ class DisplayWindow(QMainWindow):
                 font-weight: 500;
             }
 
-            QFrame#doctorCard1,
-            QFrame#doctorCard2 {
+            QFrame#doctorCard {
                 background-color: #f7fafc;
                 border-radius: 30px;
-            }
-
-            QFrame#doctorCard1 {
                 border-top: 16px solid #2e7db8;
-            }
-
-            QFrame#doctorCard2 {
-                border-top: 16px solid #2a9b6c;
             }
 
             QLabel#displayDoctorName {
@@ -319,10 +307,6 @@ class DisplayWindow(QMainWindow):
                 color: #145f91;
                 font-size: 250px;
                 font-weight: 900;
-            }
-
-            QFrame#doctorCard2 QLabel#displayDoctorNumber {
-                color: #167449;
             }
 
             QLabel#displayDoctorStatus {
@@ -375,15 +359,10 @@ class DisplayWindow(QMainWindow):
     ) -> list[dict[str, Any]]:
         active_doctors: list[dict[str, Any]] = []
 
-        for doctor_id in ("doctor1", "doctor2"):
-            doctor_state = complete_state.get(doctor_id)
-
-            if not isinstance(doctor_state, dict):
+        for doctor_id, doctor_state in complete_state.items():
+            doctor_id = str(doctor_id).strip()
+            if not doctor_id or not isinstance(doctor_state, dict):
                 continue
-
-            if not bool(doctor_state.get("online", False)):
-                continue
-
             if not bool(doctor_state.get("queue_active", False)):
                 continue
 

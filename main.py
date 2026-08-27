@@ -1,107 +1,122 @@
+import json
 import logging
 import sys
 
 from PySide6.QtWidgets import QApplication, QDialog
 
-from app.auth import password_is_set
+from app.account_dialog import AccountEntryDialog
+from app.accounts import AccountStore
 from app.config import load_config, save_config, set_active_profile
 from app.controller import AppController
 from app.logging_config import configure_logging, install_exception_hook
-from app.paths import ensure_data_directories, migrate_legacy_data
+from app.network import NetworkManager
+from app.paths import CONFIG_DIR, ensure_data_directories, migrate_legacy_data
 from app.resources import app_icon
-from app.version import APP_NAME, APP_VERSION
-from app.password_dialogs import LoginDialog, SetPasswordDialog
-from app.profile_selection_dialog import ProfileSelectionDialog
-from app.setup_dialog import SetupDialog
 from app.storage import set_active_storage_profile
+from app.version import APP_NAME, APP_VERSION
 from app.window import MainWindow
 
 
-VALID_PROFILES = {
-    "doctor1",
-    "doctor2",
-}
+def migrate_legacy_accounts(store: AccountStore) -> None:
+    for legacy_id in ("doctor1", "doctor2"):
+        path = CONFIG_DIR / f"config_{legacy_id}.json"
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict) or not data.get("configured"):
+            continue
+        name = str(data.get("doctor_name", "")).strip()
+        if not name or not data.get("password_hash") or not data.get("password_salt"):
+            continue
+        record = {
+            "doctor_id": legacy_id,
+            "doctor_name": name,
+            "queue_prefix": str(data.get("queue_prefix", "")).strip().upper()[:1],
+            "password_salt": str(data.get("password_salt", "")),
+            "password_hash": str(data.get("password_hash", "")),
+            "password_iterations": int(data.get("password_iterations", 390000) or 390000),
+            "patient_time_warning_enabled": bool(data.get("patient_time_warning_enabled", False)),
+            "patient_time_warning_minutes": int(data.get("patient_time_warning_minutes", 15) or 15),
+            "patient_time_warning_sound_enabled": bool(data.get("patient_time_warning_sound_enabled", False)),
+            "updated_at": 1.0,
+        }
+        store.import_record(record)
 
 
-def read_profile_argument() -> str | None:
-    if len(sys.argv) < 2:
+def select_account(store: AccountStore) -> dict | None:
+    server = NetworkManager.discover_server_once()
+    remote_accounts = []
+    if server:
+        response = NetworkManager.account_rpc({"type": "GESTIONE_TURNI_ACCOUNTS_LIST"}, server)
+        if response and response.get("ok") and isinstance(response.get("accounts"), list):
+            remote_accounts = response["accounts"]
+
+    accounts_by_id = {str(a.get("doctor_id", "")): a for a in store.list_public()}
+    for account in remote_accounts:
+        if isinstance(account, dict) and account.get("doctor_id"):
+            accounts_by_id[str(account["doctor_id"])] = account
+
+    def authenticate(doctor_id: str, password: str):
+        if server:
+            response = NetworkManager.account_rpc({
+                "type": "GESTIONE_TURNI_ACCOUNT_AUTH",
+                "doctor_id": doctor_id,
+                "password": password,
+            }, server)
+            if response and response.get("ok") and isinstance(response.get("account"), dict):
+                account = dict(response["account"])
+                store.import_record(account)
+                return account
+        return store.verify(doctor_id, password)
+
+    def create_account(name: str, password: str):
+        if server:
+            response = NetworkManager.account_rpc({
+                "type": "GESTIONE_TURNI_ACCOUNT_CREATE",
+                "doctor_name": name,
+                "password": password,
+            }, server)
+            if response and response.get("ok") and isinstance(response.get("account"), dict):
+                account = dict(response["account"])
+                store.import_record(account)
+                return account
+            if response and response.get("error"):
+                raise ValueError(str(response["error"]))
+        return store.create(name, password)
+
+    dialog = AccountEntryDialog(list(accounts_by_id.values()), authenticate, create_account)
+    if dialog.exec() != QDialog.DialogCode.Accepted:
         return None
-
-    requested_profile = sys.argv[1].strip().lower()
-
-    if requested_profile not in VALID_PROFILES:
-        print(
-            "Profilo non valido.\n"
-            "Usa uno dei seguenti comandi:\n"
-            "  python main.py\n"
-            "  python main.py doctor1\n"
-            "  python main.py doctor2"
-        )
-        sys.exit(1)
-
-    return requested_profile
+    return dialog.selected_account
 
 
-def load_available_profiles() -> list[dict[str, object]]:
-    profiles: list[dict[str, object]] = []
-
-    for profile_id, default_label in (
-        ("doctor1", "Medico 1"),
-        ("doctor2", "Medico 2"),
-    ):
-        set_active_profile(profile_id)
-        config = load_config()
-
-        configured = bool(
-            config.get(
-                "configured",
-                False,
-            )
-        )
-
-        doctor_name = str(
-            config.get(
-                "doctor_name",
-                "",
-            )
-        ).strip()
-
-        profiles.append(
-            {
-                "doctor_id": profile_id,
-                "doctor_name": (
-                    doctor_name
-                    if doctor_name
-                    else default_label
-                ),
-                "configured": configured,
-            }
-        )
-
-    set_active_profile(None)
-
-    return profiles
-
-
-def choose_profile() -> str | None:
-    dialog = ProfileSelectionDialog(
-        profiles=load_available_profiles()
-    )
-
-    if (
-        dialog.exec()
-        != QDialog.DialogCode.Accepted
-    ):
-        return None
-
-    return dialog.selected_profile
+def prepare_account_config(account: dict) -> None:
+    doctor_id = str(account.get("doctor_id", "")).strip()
+    set_active_profile(doctor_id)
+    set_active_storage_profile(doctor_id)
+    config = load_config()
+    config.update({
+        "configured": True,
+        "doctor_id": doctor_id,
+        "doctor_name": str(account.get("doctor_name", "")).strip(),
+        "queue_prefix": str(account.get("queue_prefix", config.get("queue_prefix", ""))).strip().upper()[:1],
+        "password_salt": str(account.get("password_salt", "")),
+        "password_hash": str(account.get("password_hash", "")),
+        "password_iterations": int(account.get("password_iterations", 390000) or 390000),
+        "patient_time_warning_enabled": bool(account.get("patient_time_warning_enabled", config.get("patient_time_warning_enabled", False))),
+        "patient_time_warning_minutes": int(account.get("patient_time_warning_minutes", config.get("patient_time_warning_minutes", 15)) or 15),
+        "patient_time_warning_sound_enabled": bool(account.get("patient_time_warning_sound_enabled", config.get("patient_time_warning_sound_enabled", False))),
+    })
+    save_config(config)
 
 
 def main() -> None:
     ensure_data_directories()
     configure_logging()
     install_exception_hook()
-
     logging.info("Avvio %s %s", APP_NAME, APP_VERSION)
     migrate_legacy_data()
 
@@ -110,61 +125,15 @@ def main() -> None:
     app.setApplicationVersion(APP_VERSION)
     app.setWindowIcon(app_icon())
 
-    profile = read_profile_argument()
+    account_store = AccountStore()
+    migrate_legacy_accounts(account_store)
+    account = select_account(account_store)
+    if account is None:
+        sys.exit(0)
 
-    if profile is None:
-        profile = choose_profile()
-
-        if profile is None:
-            sys.exit(0)
-
-    set_active_profile(profile)
-    set_active_storage_profile(profile)
-
-    config = load_config()
-
-    if not config["configured"]:
-        setup_dialog = SetupDialog(
-            forced_doctor_id=profile
-        )
-
-        if (
-            setup_dialog.exec()
-            != QDialog.DialogCode.Accepted
-        ):
-            sys.exit(0)
-
-        config = load_config()
-    elif not password_is_set(config):
-        set_password_dialog = SetPasswordDialog(
-            doctor_name=str(config.get("doctor_name", "")).strip(),
-        )
-
-        if (
-            set_password_dialog.exec()
-            != QDialog.DialogCode.Accepted
-            or set_password_dialog.password_record is None
-        ):
-            sys.exit(0)
-
-        config.update(set_password_dialog.password_record)
-        save_config(config)
-    else:
-        login_dialog = LoginDialog(
-            doctor_name=str(config.get("doctor_name", "")).strip(),
-            config=config,
-        )
-
-        if (
-            login_dialog.exec()
-            != QDialog.DialogCode.Accepted
-            or not login_dialog.authenticated
-        ):
-            sys.exit(0)
-
-    controller = AppController()
+    prepare_account_config(account)
+    controller = AppController(account_store=account_store)
     window = MainWindow(controller)
-
     window.show()
     controller.start()
 

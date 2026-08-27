@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QMessageBox,
     QPushButton,
     QSpinBox,
@@ -28,6 +29,7 @@ class SettingsDialog(QDialog):
     def __init__(
         self,
         current_config: dict[str, Any],
+        delete_account_callback: Callable[[str], tuple[bool, str]] | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -35,6 +37,8 @@ class SettingsDialog(QDialog):
         self.saved_settings: dict[str, Any] | None = None
         self._password_record: dict[str, object] | None = None
         self.current_config = dict(current_config)
+        self.delete_account_callback = delete_account_callback
+        self.account_deleted = False
 
         self.setWindowTitle("Impostazioni")
         self.setWindowIcon(app_icon())
@@ -145,9 +149,18 @@ class SettingsDialog(QDialog):
         self.patient_warning_minutes.setEnabled(
             self.patient_warning_checkbox.isChecked()
         )
-        self.patient_warning_checkbox.toggled.connect(
-            self.patient_warning_minutes.setEnabled
+
+        self.patient_warning_sound_checkbox = QCheckBox(
+            "Riproduci anche un suono sul PC quando la soglia viene superata"
         )
+        self.patient_warning_sound_checkbox.setChecked(
+            bool(current_config.get("patient_time_warning_sound_enabled", False))
+        )
+        self.patient_warning_sound_checkbox.setEnabled(
+            self.patient_warning_checkbox.isChecked()
+        )
+        self.patient_warning_checkbox.toggled.connect(self.patient_warning_minutes.setEnabled)
+        self.patient_warning_checkbox.toggled.connect(self.patient_warning_sound_checkbox.setEnabled)
 
         timer_form = QFormLayout()
         timer_form.setVerticalSpacing(14)
@@ -165,6 +178,12 @@ class SettingsDialog(QDialog):
         self.change_password_button.clicked.connect(
             self._change_password
         )
+
+        self.delete_account_button = QPushButton("Elimina account e tutti i dati")
+        self.delete_account_button.setObjectName("settingsDeleteAccountButton")
+        self.delete_account_button.setMinimumHeight(46)
+        self.delete_account_button.setEnabled(self.delete_account_callback is not None)
+        self.delete_account_button.clicked.connect(self._delete_account)
 
         self.version_label = QLabel(
             f"Gestione Turni · Versione {APP_VERSION}"
@@ -263,11 +282,13 @@ class SettingsDialog(QDialog):
         scroll_layout.addSpacing(8)
         scroll_layout.addWidget(section_timer)
         scroll_layout.addWidget(self.patient_warning_checkbox)
+        scroll_layout.addWidget(self.patient_warning_sound_checkbox)
         scroll_layout.addLayout(timer_form)
 
         scroll_layout.addSpacing(8)
         scroll_layout.addWidget(section_security)
         scroll_layout.addWidget(self.change_password_button)
+        scroll_layout.addWidget(self.delete_account_button)
         scroll_layout.addStretch()
 
         scroll_area.setWidget(scroll_content)
@@ -355,6 +376,15 @@ class SettingsDialog(QDialog):
                 background-color: #cfdee9;
             }
 
+            QPushButton#settingsDeleteAccountButton {
+                background-color: #b23a34;
+                color: white;
+            }
+
+            QPushButton#settingsDeleteAccountButton:hover {
+                background-color: #962f2a;
+            }
+
             QPushButton#settingsCancelButton {
                 background-color: #dfe7ee;
                 color: #334b5d;
@@ -374,6 +404,55 @@ class SettingsDialog(QDialog):
             }
             """
         )
+
+    def _delete_account(self) -> None:
+        if self.delete_account_callback is None:
+            return
+
+        doctor_name = str(self.current_config.get("doctor_name", "questo account")).strip()
+        first = QMessageBox.warning(
+            self,
+            "Elimina account",
+            f"Stai per eliminare definitivamente {doctor_name}.\n\n"
+            "Verranno eliminati account, coda, impostazioni, storico e statistiche. "
+            "L'operazione non può essere annullata.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if first != QMessageBox.StandardButton.Yes:
+            return
+
+        password, ok = QInputDialog.getText(
+            self,
+            "Conferma password",
+            "Inserisci la password dell'account per confermare:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+
+        second = QMessageBox.question(
+            self,
+            "Conferma eliminazione definitiva",
+            f"Eliminare definitivamente {doctor_name} e tutti i suoi dati?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if second != QMessageBox.StandardButton.Yes:
+            return
+
+        success, message = self.delete_account_callback(password)
+        if not success:
+            QMessageBox.warning(self, "Eliminazione non riuscita", message)
+            return
+
+        self.account_deleted = True
+        QMessageBox.information(
+            self,
+            "Account eliminato",
+            "L'account e tutti i dati associati sono stati eliminati.",
+        )
+        self.accept()
 
     def _change_password(self) -> None:
         dialog = ChangePasswordDialog(
@@ -435,6 +514,9 @@ class SettingsDialog(QDialog):
             ),
             "patient_time_warning_minutes": (
                 self.patient_warning_minutes.value()
+            ),
+            "patient_time_warning_sound_enabled": (
+                self.patient_warning_sound_checkbox.isChecked()
             ),
         }
 

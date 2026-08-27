@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from typing import Any
+import threading
 import time
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -80,6 +82,7 @@ class MainWindow(QMainWindow):
         self._patient_warning_dialog = None
         self._patient_warning_key = None
         self._patient_warning_acknowledged_key = None
+        self._patient_warning_sound_key = None
 
         self.setWindowTitle(
             f"{APP_NAME} {APP_VERSION} - {self.doctor_name}"
@@ -88,11 +91,11 @@ class MainWindow(QMainWindow):
 
         self.setMinimumSize(
             700,
-            760,
+            650,
         )
         self.resize(
-            820,
-            850,
+            900,
+            800,
         )
 
         central_widget = QWidget()
@@ -116,6 +119,7 @@ class MainWindow(QMainWindow):
         self._build_layout(
             central_widget
         )
+        self._apply_responsive_layout(self.height())
 
         self.setStyleSheet(
             APP_STYLE
@@ -212,6 +216,7 @@ class MainWindow(QMainWindow):
             self._close_patient_warning_dialog()
             self._patient_warning_key = warning_key
             self._patient_warning_acknowledged_key = None
+            self._patient_warning_sound_key = None
 
         warning_enabled = bool(
             self.controller.config.get("patient_time_warning_enabled", False)
@@ -229,6 +234,12 @@ class MainWindow(QMainWindow):
         )
 
         if warning_active:
+            if (
+                bool(self.controller.config.get("patient_time_warning_sound_enabled", False))
+                and self._patient_warning_sound_key != warning_key
+            ):
+                self._play_patient_warning_alarm()
+                self._patient_warning_sound_key = warning_key
             self.patient_timer_label.setText(
                 f"⚠ Tempo paziente {ticket}: "
                 f"{elapsed_text} · "
@@ -251,6 +262,31 @@ class MainWindow(QMainWindow):
         self._refresh_widget_style(
             self.patient_timer_label
         )
+
+    def _play_patient_warning_alarm(self) -> None:
+        """Riproduce un allarme ben udibile senza bloccare l'interfaccia."""
+
+        def _worker() -> None:
+            try:
+                import winsound
+
+                # Sequenza alternata, più riconoscibile di QApplication.beep().
+                # Viene eseguita una sola volta per paziente.
+                for _ in range(3):
+                    winsound.Beep(1050, 240)
+                    winsound.Beep(1450, 240)
+                    time.sleep(0.10)
+            except Exception:
+                # Fallback per ambienti/non-Windows in cui winsound non è disponibile.
+                for _ in range(3):
+                    QApplication.beep()
+                    time.sleep(0.20)
+
+        threading.Thread(
+            target=_worker,
+            name="patient-warning-alarm",
+            daemon=True,
+        ).start()
 
     def _show_patient_time_warning(
         self,
@@ -300,6 +336,7 @@ class MainWindow(QMainWindow):
         self._close_patient_warning_dialog()
         self._patient_warning_key = None
         self._patient_warning_acknowledged_key = None
+        self._patient_warning_sound_key = None
 
     def _build_queue_controls(self) -> None:
         self.queue_status_label = QLabel()
@@ -464,60 +501,108 @@ class MainWindow(QMainWindow):
         self,
         central_widget: QWidget,
     ) -> None:
-        main_layout = QVBoxLayout(
+        self.main_layout = QVBoxLayout(
             central_widget
         )
 
-        main_layout.setContentsMargins(
+        self.main_layout.setContentsMargins(
             36,
             18,
             36,
             20,
         )
-        main_layout.setSpacing(
+        self.main_layout.setSpacing(
             8
         )
 
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.title_label
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.subtitle_label
         )
 
-        main_layout.addSpacing(4)
+        self.main_layout.addSpacing(4)
 
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.doctor_card
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.patient_timer_label
         )
 
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.queue_status_label
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.queue_button
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.display_button
         )
-        main_layout.addLayout(
+        self.main_layout.addLayout(
             self.secondary_buttons_layout
         )
 
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.network_separator
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.network_summary_label
         )
-        main_layout.addLayout(
+        self.main_layout.addLayout(
             self.bottom_buttons_layout
         )
 
-        main_layout.addStretch()
+        self.main_layout.addStretch()
+
+    def _apply_responsive_layout(self, height: int) -> None:
+        """Adatta l'interfaccia all'altezza realmente disponibile.
+
+        Windows può ridurre parecchio lo spazio utile quando usa scaling DPI,
+        barra delle applicazioni o finestre massimizzate. Sotto i 900 px
+        passiamo automaticamente a una variante compatta, senza sovrapporre
+        timer e controlli.
+        """
+        compact = int(height) < 900
+
+        self.doctor_card.set_compact_mode(compact)
+
+        if compact:
+            self.main_layout.setContentsMargins(28, 10, 28, 12)
+            self.main_layout.setSpacing(5)
+            self.title_label.setStyleSheet(
+                "font-size: 28px; font-weight: 800; letter-spacing: 2px;"
+            )
+            self.subtitle_label.setStyleSheet("font-size: 15px;")
+            self.patient_timer_label.setFixedHeight(30)
+            self.queue_status_label.setFixedHeight(22)
+            self.queue_button.setFixedHeight(50)
+            self.display_button.setFixedHeight(40)
+            self.dashboard_button.setFixedHeight(40)
+            self.history_button.setFixedHeight(40)
+            self.network_summary_label.setFixedHeight(24)
+            self.settings_button.setFixedHeight(40)
+            self.about_button.setFixedHeight(40)
+        else:
+            self.main_layout.setContentsMargins(36, 18, 36, 20)
+            self.main_layout.setSpacing(8)
+            self.title_label.setStyleSheet("")
+            self.subtitle_label.setStyleSheet("")
+            self.patient_timer_label.setFixedHeight(34)
+            self.queue_status_label.setFixedHeight(24)
+            self.queue_button.setFixedHeight(56)
+            self.display_button.setFixedHeight(46)
+            self.dashboard_button.setFixedHeight(46)
+            self.history_button.setFixedHeight(46)
+            self.network_summary_label.setFixedHeight(26)
+            self.settings_button.setFixedHeight(46)
+            self.about_button.setFixedHeight(46)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "main_layout") and hasattr(self, "doctor_card"):
+            self._apply_responsive_layout(event.size().height())
 
     def _connect_controller(self) -> None:
         self.controller.state_changed.connect(

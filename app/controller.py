@@ -5,10 +5,11 @@ import time
 
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QDialog
+from PySide6.QtCore import QObject, Signal, QTimer
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from app.config import load_config, save_config
+from app.accounts import AccountStore
 from app.history_storage import (
     end_daily_queue,
     record_patient_visit,
@@ -38,8 +39,9 @@ class AppController(QObject):
     settings_changed = Signal(object)
     patient_timer_changed = Signal(object)
 
-    def __init__(self) -> None:
+    def __init__(self, account_store: AccountStore | None = None) -> None:
         super().__init__()
+        self.account_store = account_store or AccountStore()
 
         self.config = load_config()
 
@@ -102,9 +104,8 @@ class AppController(QObject):
             self.shared_state
         )
 
-        self.network_manager = NetworkManager(
-            self.doctor_id
-        )
+        self.network_manager = NetworkManager(self.doctor_id)
+        self.network_manager.set_account_store(self.account_store)
 
         self.web_display_server = WebDisplayServer(
             state_provider=self.shared_state.get_all,
@@ -123,6 +124,7 @@ class AppController(QObject):
         self.display_window = None
         self.history_window = None
         self.dashboard_window = None
+        self._account_deleted = False
 
         self._connect_components()
 
@@ -145,6 +147,9 @@ class AppController(QObject):
         self.network_manager.message_received.connect(
             self.sync_manager.handle_network_message
         )
+        self.network_manager.account_records_received.connect(
+            self._on_account_records_received
+        )
 
         self.network_manager.role_changed.connect(
             self.sync_manager.set_network_role
@@ -161,6 +166,46 @@ class AppController(QObject):
         self.network_manager.server_address_changed.connect(
             self.server_address_changed.emit
         )
+
+    def _on_account_records_received(self, records: object) -> None:
+        self.account_store.merge_records(records)
+
+        if isinstance(records, list):
+            for record in records:
+                if not isinstance(record, dict) or not bool(record.get("deleted", False)):
+                    continue
+                deleted_id = str(record.get("doctor_id", "")).strip()
+                if deleted_id:
+                    self.shared_state.remove_doctor(deleted_id)
+                if deleted_id == self.doctor_id and not self._account_deleted:
+                    self._account_deleted = True
+                    QMessageBox.information(
+                        None,
+                        "Account eliminato",
+                        "Questo account è stato eliminato da un altro computer. "
+                        "Gestione Turni verrà chiuso.",
+                    )
+                    QTimer.singleShot(0, QApplication.closeAllWindows)
+                    return
+
+        account = self.account_store.get(self.doctor_id)
+        if account is None:
+            return
+        changed = False
+        for key in (
+            "patient_time_warning_enabled",
+            "patient_time_warning_minutes",
+            "patient_time_warning_sound_enabled",
+            "password_salt",
+            "password_hash",
+            "password_iterations",
+        ):
+            if key in account and self.config.get(key) != account.get(key):
+                self.config[key] = account.get(key)
+                changed = True
+        if changed:
+            save_config(self.config)
+            self.settings_changed.emit(dict(self.config))
 
     def start(self) -> None:
         LOGGER.info("Avvio rete per il profilo %s", self.doctor_id)
@@ -251,6 +296,7 @@ class AppController(QObject):
     ) -> None:
         dialog = SettingsDialog(
             current_config=self.config,
+            delete_account_callback=self.delete_current_account,
             parent=parent,
         )
 
@@ -258,6 +304,10 @@ class AppController(QObject):
             dialog.exec()
             != QDialog.DialogCode.Accepted
         ):
+            return
+
+        if dialog.account_deleted:
+            QTimer.singleShot(0, QApplication.closeAllWindows)
             return
 
         if dialog.saved_settings is None:
@@ -279,6 +329,13 @@ class AppController(QObject):
         self.config.update(settings)
         self.config["queue_prefix"] = new_prefix
         save_config(self.config)
+
+        account_record = self.account_store.update_account(
+            self.doctor_id,
+            self.config,
+        )
+        if account_record is not None:
+            self.network_manager.publish_account_record(account_record)
 
         if new_name != self.doctor_name:
             self.doctor_name = new_name
@@ -329,6 +386,42 @@ class AppController(QObject):
 
         if self.dashboard_window is not None:
             self.dashboard_window.refresh_dashboard()
+
+    def delete_current_account(self, password: str) -> tuple[bool, str]:
+        if self._account_deleted:
+            return False, "L'account è già stato eliminato."
+
+        clean_password = str(password)
+        try:
+            if self.network_manager.role == "server":
+                record = self.account_store.delete(self.doctor_id, clean_password)
+            else:
+                server = self.network_manager.server_address or None
+                response = NetworkManager.account_rpc(
+                    {
+                        "type": "GESTIONE_TURNI_ACCOUNT_DELETE",
+                        "doctor_id": self.doctor_id,
+                        "password": clean_password,
+                    },
+                    server,
+                )
+                if not response:
+                    return False, "Server non raggiungibile. Riprova tra qualche secondo."
+                if not bool(response.get("ok", False)):
+                    return False, str(response.get("error") or "Password non corretta o eliminazione non riuscita.")
+                record = response.get("record")
+                if not isinstance(record, dict):
+                    return False, "Risposta del server non valida."
+                self.account_store.merge_records([record])
+
+            self._account_deleted = True
+            self.shared_state.remove_doctor(self.doctor_id)
+            self.network_manager.publish_account_record(record)
+            return True, "Account eliminato."
+        except ValueError as exc:
+            return False, str(exc)
+        except OSError:
+            return False, "Impossibile eliminare alcuni dati locali. Riprova."
 
     def open_display(self) -> None:
         from app.display_window import DisplayWindow
@@ -579,6 +672,8 @@ class AppController(QObject):
         self,
         complete_state: object,
     ) -> None:
+        if self._account_deleted:
+            return
         if not isinstance(
             complete_state,
             dict,
@@ -606,6 +701,16 @@ class AppController(QObject):
                     self.queue_active,
                 )
             )
+            self.queue_prefix = self._clean_queue_prefix(
+                local_state.get("queue_prefix", self.queue_prefix)
+            )
+            turns = load_turns()
+            turns[self.doctor_id] = self._safe_number(local_state.get("number", 0))
+            save_turns(turns)
+            self.config["queue_active"] = self.queue_active
+            self.config["doctor_name"] = self.doctor_name
+            self.config["queue_prefix"] = self.queue_prefix
+            save_config(self.config)
 
         self.state_changed.emit(
             complete_state

@@ -19,6 +19,10 @@ DEFAULT_CONFIG = {
     "password_iterations": 390000,
     "patient_time_warning_enabled": False,
     "patient_time_warning_minutes": 15,
+    "patient_time_warning_sound_enabled": False,
+    "patient_started_at": None,
+    "patient_number": None,
+    "patient_prefix": "",
 }
 
 
@@ -27,14 +31,8 @@ def set_active_profile(
 ) -> None:
     global _active_profile
 
-    if profile not in {
-        None,
-        "doctor1",
-        "doctor2",
-    }:
-        raise ValueError(
-            f"Profilo non valido: {profile}"
-        )
+    if profile is not None and not str(profile).strip():
+        raise ValueError(f"Profilo non valido: {profile}")
 
     _active_profile = profile
 
@@ -126,6 +124,12 @@ def load_config() -> dict[str, Any]:
             "patient_time_warning_minutes": _safe_warning_minutes(
                 data.get("patient_time_warning_minutes", 15)
             ),
+            "patient_time_warning_sound_enabled": bool(
+                data.get("patient_time_warning_sound_enabled", False)
+            ),
+            "patient_started_at": data.get("patient_started_at"),
+            "patient_number": data.get("patient_number"),
+            "patient_prefix": _clean_queue_prefix(data.get("patient_prefix", "")),
         }
 
     except (
@@ -159,13 +163,8 @@ def save_config(
     if _active_profile is not None:
         doctor_id = _active_profile
 
-    if doctor_id not in {
-        "doctor1",
-        "doctor2",
-    }:
-        raise ValueError(
-            "Identificativo medico non valido."
-        )
+    if not doctor_id.strip():
+        raise ValueError("Identificativo medico non valido.")
 
     safe_config = {
         "configured": bool(
@@ -209,6 +208,12 @@ def save_config(
         "patient_time_warning_minutes": _safe_warning_minutes(
             config.get("patient_time_warning_minutes", 15)
         ),
+        "patient_time_warning_sound_enabled": bool(
+            config.get("patient_time_warning_sound_enabled", False)
+        ),
+        "patient_started_at": config.get("patient_started_at"),
+        "patient_number": config.get("patient_number"),
+        "patient_prefix": _clean_queue_prefix(config.get("patient_prefix", "")),
     }
 
     config_file = get_config_file()

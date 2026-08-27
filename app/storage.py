@@ -15,11 +15,6 @@ from app.paths import (
     get_turns_lock_file as resolve_turns_lock_file,
 )
 
-VALID_PROFILES = {
-    "doctor1",
-    "doctor2",
-}
-
 LOCK_TIMEOUT_SECONDS = 8.0
 LOCK_RETRY_SECONDS = 0.05
 
@@ -34,14 +29,8 @@ def set_active_storage_profile(
 ) -> None:
     global _active_storage_profile
 
-    if profile not in {
-        None,
-        "doctor1",
-        "doctor2",
-    }:
-        raise ValueError(
-            f"Profilo di salvataggio non valido: {profile}"
-        )
+    if profile is not None and not str(profile).strip():
+        raise ValueError(f"Profilo di salvataggio non valido: {profile}")
 
     _active_storage_profile = profile
 
@@ -329,28 +318,20 @@ def _remove_stale_lock_if_needed(
 def _normalise_turns(
     turns: dict[str, Any],
 ) -> dict[str, int]:
-    return {
-        "doctor1": _safe_number(
-            turns.get(
-                "doctor1",
-                0,
-            )
-        ),
-        "doctor2": _safe_number(
-            turns.get(
-                "doctor2",
-                0,
-            )
-        ),
-    }
+    result: dict[str, int] = {}
+    for key, value in turns.items():
+        doctor_id = str(key).strip()
+        if doctor_id:
+            result[doctor_id] = _safe_number(value)
+    if _active_storage_profile and _active_storage_profile not in result:
+        result[_active_storage_profile] = 0
+    return result
 
 
 def _default_turns() -> dict[str, int]:
-    return {
-        "doctor1": 0,
-        "doctor2": 0,
-    }
-
+    if _active_storage_profile:
+        return {_active_storage_profile: 0}
+    return {}
 
 def _safe_number(
     value: object,

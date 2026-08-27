@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -29,12 +31,14 @@ class StudioCard(QFrame):
 
         self.setObjectName("studioCard")
 
-        self.setMinimumHeight(320)
-        self.setMaximumHeight(350)
+        self._compact_mode = False
+
+        self.setMinimumHeight(300)
+        self.setMaximumHeight(380)
 
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Preferred,
         )
 
         self._build_interface(studio_name)
@@ -112,6 +116,24 @@ class StudioCard(QFrame):
             stretch=1,
         )
 
+        self.manual_number_input = QLineEdit()
+        self.manual_number_input.setObjectName("studioManualNumberInput")
+        self.manual_number_input.setPlaceholderText("Es. 94")
+        self.manual_number_input.setValidator(QIntValidator(0, 999999, self))
+        self.manual_number_input.setFixedHeight(42)
+        self.manual_number_input.returnPressed.connect(self.set_manual_number)
+
+        self.manual_number_button = QPushButton("Imposta numero")
+        self.manual_number_button.setObjectName("studioManualNumberButton")
+        self.manual_number_button.setFixedHeight(42)
+        self.manual_number_button.clicked.connect(self.set_manual_number)
+
+        manual_layout = QHBoxLayout()
+        manual_layout.setContentsMargins(0, 0, 0, 0)
+        manual_layout.setSpacing(10)
+        manual_layout.addWidget(self.manual_number_input, stretch=1)
+        manual_layout.addWidget(self.manual_number_button, stretch=1)
+
         self.reset_button = QPushButton(
             "Reset"
         )
@@ -123,27 +145,24 @@ class StudioCard(QFrame):
             self.confirm_reset
         )
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(
             24,
             16,
             24,
             18,
         )
-        main_layout.setSpacing(8)
+        self.main_layout.setSpacing(8)
 
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.name_label
         )
-        main_layout.addWidget(
+        self.main_layout.addWidget(
             self.number_label
         )
-        main_layout.addLayout(
-            buttons_layout
-        )
-        main_layout.addWidget(
-            self.reset_button
-        )
+        self.main_layout.addLayout(buttons_layout)
+        self.main_layout.addLayout(manual_layout)
+        self.main_layout.addWidget(self.reset_button)
 
     def increment(self) -> None:
         self._set_number_from_user(
@@ -156,6 +175,14 @@ class StudioCard(QFrame):
             max(0, self._number - 1),
             action="decrement",
         )
+
+    def set_manual_number(self) -> None:
+        text = self.manual_number_input.text().strip()
+        if not text:
+            self.manual_number_input.setFocus()
+            return
+        self._set_number_from_user(self._safe_number(text), action="set")
+        self.manual_number_input.clear()
 
     def confirm_reset(self) -> None:
         if self._number == 0:
@@ -238,9 +265,49 @@ class StudioCard(QFrame):
             action,
         )
 
+    def set_compact_mode(self, compact: bool) -> None:
+        compact = bool(compact)
+        if compact == self._compact_mode:
+            return
+
+        self._compact_mode = compact
+
+        if compact:
+            self.setMinimumHeight(270)
+            self.setMaximumHeight(305)
+            self.name_label.setMaximumHeight(34)
+            self.number_label.setMinimumHeight(72)
+            self.number_label.setMaximumHeight(86)
+            self.decrement_button.setFixedHeight(46)
+            self.increment_button.setFixedHeight(46)
+            self.manual_number_input.setFixedHeight(36)
+            self.manual_number_button.setFixedHeight(36)
+            self.reset_button.setFixedHeight(36)
+            self.main_layout.setContentsMargins(18, 10, 18, 12)
+            self.main_layout.setSpacing(5)
+        else:
+            self.setMinimumHeight(300)
+            self.setMaximumHeight(380)
+            self.name_label.setMaximumHeight(42)
+            self.number_label.setMinimumHeight(105)
+            self.number_label.setMaximumHeight(125)
+            self.decrement_button.setFixedHeight(56)
+            self.increment_button.setFixedHeight(56)
+            self.manual_number_input.setFixedHeight(42)
+            self.manual_number_button.setFixedHeight(42)
+            self.reset_button.setFixedHeight(42)
+            self.main_layout.setContentsMargins(24, 16, 24, 18)
+            self.main_layout.setSpacing(8)
+
+        self._apply_style()
+        self.updateGeometry()
+
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
+        number_font = 76 if self._compact_mode else 94
+        name_font = 21 if self._compact_mode else 25
+        button_font = 18 if self._compact_mode else 21
+
+        style = """
             QFrame#studioCard {
                 background-color: white;
                 border: 1px solid #d3dfe8;
@@ -249,13 +316,13 @@ class StudioCard(QFrame):
 
             QLabel#studioCardName {
                 color: #183b56;
-                font-size: 25px;
+                font-size: __NAME_FONT__px;
                 font-weight: 900;
             }
 
             QLabel#studioCardNumber {
                 color: #17689c;
-                font-size: 94px;
+                font-size: __NUMBER_FONT__px;
                 font-weight: 900;
                 padding: 0;
                 margin: 0;
@@ -264,7 +331,7 @@ class StudioCard(QFrame):
             QPushButton {
                 border: none;
                 border-radius: 13px;
-                font-size: 21px;
+                font-size: __BUTTON_FONT__px;
                 font-weight: 800;
             }
 
@@ -294,6 +361,27 @@ class StudioCard(QFrame):
                 background-color: #126b43;
             }
 
+            QLineEdit#studioManualNumberInput {
+                background-color: white;
+                color: #213d53;
+                border: 1px solid #cbd8e3;
+                border-radius: 10px;
+                padding: 6px 10px;
+                font-size: 17px;
+            }
+
+            QPushButton#studioManualNumberButton {
+                background-color: #17689c;
+                color: white;
+                font-size: 15px;
+                font-weight: 800;
+                border-radius: 10px;
+            }
+
+            QPushButton#studioManualNumberButton:hover {
+                background-color: #125b88;
+            }
+
             QPushButton#studioResetButton {
                 background-color: #f7e3e1;
                 color: #ad392f;
@@ -309,8 +397,12 @@ class StudioCard(QFrame):
             QPushButton#studioResetButton:pressed {
                 background-color: #eac5c1;
             }
-            """
-        )
+        """
+
+        style = style.replace("__NAME_FONT__", str(name_font))
+        style = style.replace("__NUMBER_FONT__", str(number_font))
+        style = style.replace("__BUTTON_FONT__", str(button_font))
+        self.setStyleSheet(style)
 
     def _formatted_number(self) -> str:
         return f"{self._queue_prefix}{self._number}"

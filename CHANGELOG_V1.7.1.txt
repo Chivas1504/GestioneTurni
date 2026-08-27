@@ -1,0 +1,6 @@
+Gestione Turni v1.7.1
+
+- Layout principale responsivo: modalità compatta automatica sui display con minore altezza utile / scaling Windows.
+- Eliminata la sovrapposizione tra card medico, timer e controlli.
+- Allarme timer paziente più forte: sequenza sonora alternata ripetuta, eseguita una sola volta per paziente.
+- L'allarme viene eseguito in background e non blocca la GUI.

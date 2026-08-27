@@ -1,14 +1,14 @@
-Gestione Turni v1.6.6 - Dashboard adattiva
+GESTIONE TURNI v1.6.8 - AUDIO SMART TV COMPATIBILITA
 
-Base: v1.6.5. Questa patch NON include ancora il suono Smart TV.
+Questa patch parte dalla v1.6.7 e mantiene la Dashboard adattiva.
 
-Modifiche:
-- Dashboard adattata all'area realmente disponibile dello schermo.
-- Ridotta la dimensione minima della finestra per PC con scaling Windows 125%/150%.
-- Contenuto Dashboard inserito in area scorrevole verticale.
-- I pulsanti Aggiorna, Storico completo e Chiudi restano sempre visibili in basso.
-- Nessuna modifica a statistiche, storico, code, Server/Client o display TV.
+Correzione audio Smart TV:
+- usa MP3 come formato principale, molto piu compatibile con browser TV datati;
+- mantiene WAV come fallback;
+- volume impostato al massimo lato pagina;
+- il pulsante ATTIVA AUDIO effettua subito un suono di prova;
+- il suono viene poi riprodotto a ogni vero cambio del numero chiamato;
+- nessuna modifica alla logica Server/Client o alle code.
 
-Copia i file nel progetto v1.6.5 mantenendo le cartelle, poi ricrea build/dist con PyInstaller e compila Installer.iss con Inno Setup.
-
-Il precedente pacchetto 1.6.6 Audio Smart TV NON va applicato insieme a questo: il suono verra integrato nella successiva v1.6.7 dopo aver verificato la Dashboard.
+Dopo l'installazione chiudere e riaprire il browser della TV e premere ATTIVA AUDIO.
+Se il suono di prova si sente, anche i successivi cambi turno useranno lo stesso audio.

@@ -4,97 +4,23 @@ from copy import deepcopy
 from enum import Enum
 from typing import Any
 
-
 PROTOCOL_NAME = "gestione_turni"
-PROTOCOL_VERSION = 1
-
-DOCTOR_IDS = (
-    "doctor1",
-    "doctor2",
-)
+PROTOCOL_VERSION = 2
 
 
 class MessageType(str, Enum):
-
     DOCTOR_UPDATE = "doctor_update"
     COMPLETE_STATE = "complete_state"
     REQUEST_STATE = "request_state"
     PEER_DISCONNECT = "peer_disconnect"
 
 
-def create_doctor_update(
-    doctor_state: dict[str, Any],
-) -> dict[str, Any]:
-    normalised_doctor = normalise_doctor_state(
-        doctor_state
-    )
-
-    return create_message(
-        MessageType.DOCTOR_UPDATE,
-        {
-            "doctor": normalised_doctor,
-        },
-    )
+def validate_doctor_id(doctor_id: str) -> None:
+    if not str(doctor_id).strip():
+        raise ValueError("Identificativo medico non valido.")
 
 
-def create_complete_state(
-    state: dict[str, Any],
-) -> dict[str, Any]:
-    normalised_state = normalise_complete_state(
-        state
-    )
-
-    return create_message(
-        MessageType.COMPLETE_STATE,
-        {
-            "state": normalised_state,
-        },
-    )
-
-
-def create_state_request(
-    doctor_id: str,
-) -> dict[str, Any]:
-    validate_doctor_id(doctor_id)
-
-    return create_message(
-        MessageType.REQUEST_STATE,
-        {
-            "doctor_id": doctor_id,
-        },
-    )
-
-
-def create_peer_disconnect(
-    doctor_id: str,
-) -> dict[str, Any]:
-    validate_doctor_id(doctor_id)
-
-    return create_message(
-        MessageType.PEER_DISCONNECT,
-        {
-            "doctor_id": doctor_id,
-        },
-    )
-
-
-def create_message(
-    message_type: MessageType,
-    payload: dict[str, Any],
-) -> dict[str, Any]:
-    if not isinstance(
-        message_type,
-        MessageType,
-    ):
-        raise ValueError(
-            "Tipo di messaggio non valido."
-        )
-
-    if not isinstance(payload, dict):
-        raise ValueError(
-            "Il payload deve essere un dizionario."
-        )
-
+def create_message(message_type: MessageType, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "protocol": PROTOCOL_NAME,
         "version": PROTOCOL_VERSION,
@@ -103,197 +29,93 @@ def create_message(
     }
 
 
-def validate_message(
-    message: object,
-) -> bool:
-    if not isinstance(message, dict):
-        return False
-
-    if message.get("protocol") != PROTOCOL_NAME:
-        return False
-
-    if message.get("version") != PROTOCOL_VERSION:
-        return False
-
-    raw_type = message.get("type")
-
-    try:
-        MessageType(str(raw_type))
-    except ValueError:
-        return False
-
-    payload = message.get("payload")
-
-    if not isinstance(payload, dict):
-        return False
-
-    return True
+def create_doctor_update(doctor_state: dict[str, Any]) -> dict[str, Any]:
+    return create_message(MessageType.DOCTOR_UPDATE, {"doctor": normalise_doctor_state(doctor_state)})
 
 
-def get_message_type(
-    message: object,
-) -> MessageType | None:
+def create_complete_state(state: dict[str, Any]) -> dict[str, Any]:
+    return create_message(MessageType.COMPLETE_STATE, {"state": normalise_complete_state(state)})
+
+
+def create_state_request(doctor_id: str) -> dict[str, Any]:
+    validate_doctor_id(doctor_id)
+    return create_message(MessageType.REQUEST_STATE, {"doctor_id": doctor_id})
+
+
+def create_peer_disconnect(doctor_id: str) -> dict[str, Any]:
+    validate_doctor_id(doctor_id)
+    return create_message(MessageType.PEER_DISCONNECT, {"doctor_id": doctor_id})
+
+
+def validate_message(message: object) -> bool:
+    return bool(
+        isinstance(message, dict)
+        and message.get("protocol") == PROTOCOL_NAME
+        and int(message.get("version", 0) or 0) == PROTOCOL_VERSION
+        and isinstance(message.get("type"), str)
+        and isinstance(message.get("payload"), dict)
+    )
+
+
+def get_message_type(message: object) -> MessageType | None:
     if not validate_message(message):
         return None
-
-    assert isinstance(message, dict)
-
     try:
-        return MessageType(
-            str(message["type"])
-        )
+        return MessageType(str(message["type"]))  # type: ignore[index]
     except ValueError:
         return None
 
 
-def get_payload(
-    message: object,
-) -> dict[str, Any] | None:
+def get_payload(message: object) -> dict[str, Any] | None:
     if not validate_message(message):
         return None
-
-    assert isinstance(message, dict)
-
-    payload = message.get("payload")
-
-    if not isinstance(payload, dict):
-        return None
-
-    return deepcopy(payload)
+    payload = message.get("payload")  # type: ignore[union-attr]
+    return deepcopy(payload) if isinstance(payload, dict) else None
 
 
-def normalise_complete_state(
-    state: dict[str, Any],
-) -> dict[str, dict[str, Any]]:
+def normalise_complete_state(state: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if not isinstance(state, dict):
-        raise ValueError(
-            "Lo stato completo deve essere un dizionario."
-        )
-
+        raise ValueError("Lo stato completo deve essere un dizionario.")
     result: dict[str, dict[str, Any]] = {}
-
-    for doctor_id in DOCTOR_IDS:
-        raw_doctor = state.get(doctor_id)
-
-        if isinstance(raw_doctor, dict):
-            result[doctor_id] = (
-                normalise_doctor_state(
-                    raw_doctor,
-                    expected_doctor_id=doctor_id,
-                )
-            )
-        else:
-            result[doctor_id] = (
-                create_empty_doctor_state(
-                    doctor_id
-                )
-            )
-
+    for doctor_id, raw in state.items():
+        doctor_id = str(doctor_id).strip()
+        if not doctor_id or not isinstance(raw, dict):
+            continue
+        result[doctor_id] = normalise_doctor_state(raw, expected_doctor_id=doctor_id)
     return result
 
 
-def normalise_doctor_state(
-    doctor_state: dict[str, Any],
-    *,
-    expected_doctor_id: str | None = None,
-) -> dict[str, Any]:
+def normalise_doctor_state(doctor_state: dict[str, Any], *, expected_doctor_id: str | None = None) -> dict[str, Any]:
     if not isinstance(doctor_state, dict):
-        raise ValueError(
-            "Lo stato del medico deve essere un dizionario."
-        )
-
-    doctor_id = str(
-        expected_doctor_id
-        or doctor_state.get("doctor_id", "")
-    )
-
+        raise ValueError("Lo stato del medico deve essere un dizionario.")
+    doctor_id = str(expected_doctor_id or doctor_state.get("doctor_id", "")).strip()
     validate_doctor_id(doctor_id)
-
-    doctor_name = str(
-        doctor_state.get(
-            "doctor_name",
-            "",
-        )
-    ).strip()
-
     try:
-        number = max(
-            0,
-            int(
-                doctor_state.get(
-                    "number",
-                    0,
-                )
-            ),
-        )
+        number = max(0, int(doctor_state.get("number", 0)))
     except (TypeError, ValueError):
         number = 0
-
     try:
-        updated_at = max(
-            0.0,
-            float(
-                doctor_state.get(
-                    "updated_at",
-                    0.0,
-                )
-            ),
-        )
+        updated_at = max(0.0, float(doctor_state.get("updated_at", 0.0)))
     except (TypeError, ValueError):
         updated_at = 0.0
-
     return {
         "doctor_id": doctor_id,
-        "doctor_name": doctor_name,
-        "queue_prefix": clean_queue_prefix(
-            doctor_state.get("queue_prefix", "")
-        ),
+        "doctor_name": str(doctor_state.get("doctor_name", "")).strip(),
+        "queue_prefix": clean_queue_prefix(doctor_state.get("queue_prefix", "")),
         "number": number,
-        "queue_active": bool(
-            doctor_state.get(
-                "queue_active",
-                False,
-            )
-        ),
-        "online": bool(
-            doctor_state.get(
-                "online",
-                False,
-            )
-        ),
+        "queue_active": bool(doctor_state.get("queue_active", False)),
+        "online": bool(doctor_state.get("online", True)),
         "updated_at": updated_at,
     }
 
 
-def create_empty_doctor_state(
-    doctor_id: str,
-) -> dict[str, Any]:
+def create_empty_doctor_state(doctor_id: str) -> dict[str, Any]:
     validate_doctor_id(doctor_id)
-
-    return {
-        "doctor_id": doctor_id,
-        "doctor_name": "",
-        "queue_prefix": "",
-        "number": 0,
-        "queue_active": False,
-        "online": False,
-        "updated_at": 0.0,
-    }
+    return {"doctor_id": doctor_id, "doctor_name": "", "queue_prefix": "", "number": 0, "queue_active": False, "online": False, "updated_at": 0.0}
 
 
 def clean_queue_prefix(value: object) -> str:
     text = str(value or "").strip().upper()
     if not text:
         return ""
-    first = text[0]
-    return first if "A" <= first <= "Z" else ""
-
-
-def validate_doctor_id(
-    doctor_id: str,
-) -> None:
-    if doctor_id not in DOCTOR_IDS:
-        raise ValueError(
-            f"Identificativo medico non valido: "
-            f"{doctor_id}"
-        )
+    return text[0] if "A" <= text[0] <= "Z" else ""

@@ -32,6 +32,7 @@ class NetworkManager(QObject):
 
 
     message_received = Signal(object)
+    account_records_received = Signal(object)
 
     def __init__(
         self,
@@ -59,6 +60,21 @@ class NetworkManager(QObject):
 
         self._outbox: list[dict[str, Any]] = []
         self._peer_addresses: set[str] = set()
+        self._latest_complete_state: dict[str, Any] | None = None
+        self._account_store = None
+
+    def set_account_store(self, account_store: object) -> None:
+        self._account_store = account_store
+
+    def publish_account_record(self, record: dict[str, Any]) -> None:
+        if not isinstance(record, dict):
+            return
+        if self.role == "server":
+            store = self._account_store
+            if store is not None and hasattr(store, "merge_records"):
+                store.merge_records([record])
+            return
+        self.send_message({"type": "__account_record", "record": dict(record)})
 
     @property
     def role(self) -> str:
@@ -110,17 +126,14 @@ class NetworkManager(QObject):
 
         safe_message = dict(message)
 
+        if safe_message.get("type") == "complete_state" and self.role == "server":
+            with self._outbox_lock:
+                self._latest_complete_state = safe_message
+            return
+
         with self._outbox_lock:
-
-
             if safe_message.get("type") == "complete_state":
-                self._outbox = [
-                    queued_message
-                    for queued_message in self._outbox
-                    if queued_message.get("type")
-                    != "complete_state"
-                ]
-
+                self._outbox = [m for m in self._outbox if m.get("type") != "complete_state"]
             self._outbox.append(safe_message)
 
         # Se questo PC è il Client, risveglia subito il ciclo di
@@ -146,11 +159,7 @@ class NetworkManager(QObject):
             return
 
 
-        base_delay = (
-            0.25
-            if self.doctor_id == "doctor1"
-            else 0.85
-        )
+        base_delay = random.uniform(0.25, 0.85)
 
         time.sleep(
             base_delay
@@ -338,10 +347,16 @@ class NetworkManager(QObject):
                     raw_request
                 )
 
-                if (
-                    request.get("type")
-                    != HEARTBEAT_MESSAGE
-                ):
+                request_type = request.get("type")
+                if request_type in {"GESTIONE_TURNI_ACCOUNTS_LIST", "GESTIONE_TURNI_ACCOUNT_AUTH", "GESTIONE_TURNI_ACCOUNT_CREATE"}:
+                    response = self._handle_account_rpc(request)
+                    try:
+                        connection.sendall(json.dumps(response).encode("utf-8"))
+                    except OSError:
+                        pass
+                    continue
+
+                if request_type != HEARTBEAT_MESSAGE:
                     continue
 
                 incoming_messages = request.get(
@@ -354,17 +369,28 @@ class NetworkManager(QObject):
                     list,
                 ):
                     for message in incoming_messages:
-                        if isinstance(message, dict):
-                            self.message_received.emit(
-                                message
-                            )
+                        if not isinstance(message, dict):
+                            continue
+                        if message.get("type") == "__account_record":
+                            store = self._account_store
+                            if store is not None and hasattr(store, "merge_records"):
+                                record = message.get("record")
+                                store.merge_records([record])
+                                self.account_records_received.emit([record])
+                            continue
+                        self.message_received.emit(message)
 
+                with self._outbox_lock:
+                    latest = dict(self._latest_complete_state) if self._latest_complete_state else None
+                records = []
+                store = self._account_store
+                if store is not None and hasattr(store, "export_records"):
+                    records = store.export_records()
                 response = {
                     "type": HEARTBEAT_RESPONSE,
                     "doctor_id": self.doctor_id,
-                    "messages": (
-                        self._take_outbox_messages()
-                    ),
+                    "messages": [latest] if latest else [],
+                    "account_records": records,
                 }
 
                 try:
@@ -376,6 +402,69 @@ class NetworkManager(QObject):
 
                 except OSError:
                     continue
+
+    def _handle_account_rpc(self, request: dict[str, Any]) -> dict[str, Any]:
+        store = self._account_store
+        request_type = str(request.get("type", ""))
+        if store is None:
+            return {"type": request_type + "_RESPONSE", "ok": False, "error": "Archivio account non disponibile."}
+        try:
+            if request_type == "GESTIONE_TURNI_ACCOUNTS_LIST":
+                return {"type": "GESTIONE_TURNI_ACCOUNTS_LIST_RESPONSE", "ok": True, "accounts": store.list_public()}
+            if request_type == "GESTIONE_TURNI_ACCOUNT_AUTH":
+                account = store.verify(str(request.get("doctor_id", "")), str(request.get("password", "")))
+                return {"type": "GESTIONE_TURNI_ACCOUNT_AUTH_RESPONSE", "ok": account is not None, "account": account}
+            if request_type == "GESTIONE_TURNI_ACCOUNT_CREATE":
+                account = store.create(str(request.get("doctor_name", "")), str(request.get("password", "")))
+                return {"type": "GESTIONE_TURNI_ACCOUNT_CREATE_RESPONSE", "ok": True, "account": account}
+            if request_type == "GESTIONE_TURNI_ACCOUNT_DELETE":
+                record = store.delete(
+                    str(request.get("doctor_id", "")),
+                    str(request.get("password", "")),
+                )
+                self.account_records_received.emit([record])
+                return {
+                    "type": "GESTIONE_TURNI_ACCOUNT_DELETE_RESPONSE",
+                    "ok": True,
+                    "record": record,
+                }
+        except ValueError as exc:
+            return {"type": request_type + "_RESPONSE", "ok": False, "error": str(exc)}
+        return {"type": request_type + "_RESPONSE", "ok": False}
+
+    @classmethod
+    def discover_server_once(cls) -> str | None:
+        encoded = json.dumps({"type": DISCOVERY_MESSAGE, "doctor_id": "launcher"}).encode("utf-8")
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sock.settimeout(0.8)
+                for dest in (("255.255.255.255", DISCOVERY_PORT), ("127.0.0.1", DISCOVERY_PORT)):
+                    try: sock.sendto(encoded, dest)
+                    except OSError: pass
+                deadline = time.monotonic() + 0.8
+                while time.monotonic() < deadline:
+                    try: raw, sender = sock.recvfrom(4096)
+                    except socket.timeout: break
+                    response = cls._decode_message(raw)
+                    if response.get("type") == DISCOVERY_RESPONSE:
+                        return "127.0.0.1" if sender[0] == "127.0.0.1" else str(response.get("server_ip") or sender[0])
+        except OSError:
+            return None
+        return None
+
+    @classmethod
+    def account_rpc(cls, request: dict[str, Any], server_address: str | None = None) -> dict[str, Any] | None:
+        address = server_address or cls.discover_server_once()
+        if not address:
+            return None
+        try:
+            with socket.create_connection((address, HEARTBEAT_PORT), timeout=1.5) as connection:
+                connection.settimeout(1.5)
+                connection.sendall(json.dumps(request).encode("utf-8"))
+                return cls._decode_message(connection.recv(65536))
+        except OSError:
+            return None
 
     def _discover_server(
         self,
@@ -511,6 +600,10 @@ class NetworkManager(QObject):
                     )
 
                 missed_heartbeats = 0
+
+                account_records = response.get("account_records", [])
+                if isinstance(account_records, list) and account_records:
+                    self.account_records_received.emit(account_records)
 
                 incoming_messages = response.get(
                     "messages",

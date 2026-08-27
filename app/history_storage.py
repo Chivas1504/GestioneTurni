@@ -12,11 +12,6 @@ from typing import Any, Iterator
 
 from app.paths import HISTORY_DIR, HISTORY_FILE, HISTORY_LOCK_FILE
 
-DOCTOR_IDS = {
-    "doctor1",
-    "doctor2",
-}
-
 LOCK_TIMEOUT_SECONDS = 8.0
 LOCK_RETRY_SECONDS = 0.05
 
@@ -977,7 +972,7 @@ def _clean_queue_prefix(value: object) -> str:
 def _validate_doctor_id(
     doctor_id: str,
 ) -> None:
-    if doctor_id not in DOCTOR_IDS:
+    if not str(doctor_id).strip():
         raise ValueError(
             "Identificativo medico "
             f"non valido: {doctor_id}"

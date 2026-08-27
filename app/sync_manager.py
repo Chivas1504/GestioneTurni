@@ -69,9 +69,9 @@ class SyncManager(QObject):
             )
 
 
-            self._emit_local_state()
-
-
+            # Prima scarica lo stato autorevole dal server. In questo modo
+            # un secondo PC che entra nello stesso account non sovrascrive
+            # la coda corrente con un vecchio valore salvato localmente.
             self.request_full_synchronisation()
 
         else:
@@ -216,15 +216,10 @@ class SyncManager(QObject):
             payload.get("doctor_id", "")
         )
 
-        if doctor_id not in {
-            "doctor1",
-            "doctor2",
-        }:
+        if not doctor_id.strip():
             return
 
-        self.shared_state.mark_doctor_offline(
-            doctor_id
-        )
+        self.shared_state.mark_doctor_offline(doctor_id)
 
         if self._network_role == "server":
             self._emit_complete_state()

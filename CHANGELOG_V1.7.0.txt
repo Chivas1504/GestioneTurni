@@ -1,0 +1,12 @@
+Gestione Turni v1.7.0
+
+- Account medici dinamici: rimossi i limiti Medico 1 / Medico 2 all'avvio.
+- Nuova schermata iniziale Accedi / Crea account.
+- Lo stesso account può essere aperto contemporaneamente da più PC sulla stessa LAN.
+- La coda dello stesso account viene sincronizzata fra medico, segreteria e altre postazioni.
+- Replica locale dell'archivio account per mantenere il failover automatico.
+- Sincronizzazione server -> client resa multi-client: lo stato completo non viene più consumato da un solo client.
+- Migrazione degli account legacy doctor1/doctor2 e compatibilità con storico esistente.
+- Display desktop e Fire TV resi dinamici per più account/code attive.
+- Aggiunto campo Imposta numero per saltare direttamente a un numero desiderato.
+- Aggiunta opzione per un avviso sonoro sul PC allo scadere del timer paziente.
