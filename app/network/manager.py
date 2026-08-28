@@ -23,6 +23,7 @@ DISCOVERY_TIMEOUT_SECONDS = 1.5
 HEARTBEAT_TIMEOUT_SECONDS = 1.5
 HEARTBEAT_INTERVAL_SECONDS = 1.5
 MAX_MISSED_HEARTBEATS = 3
+SERVER_RECONCILE_INTERVAL_SECONDS = 2.5
 
 
 class NetworkManager(QObject):
@@ -185,6 +186,10 @@ class NetworkManager(QObject):
                 "Questo computer gestisce temporaneamente "
                 "la condivisione."
             )
+
+            # Anche se due PC diventano Server quasi nello stesso istante,
+            # convergono automaticamente su un unico Server canonico.
+            self._run_server_reconciliation()
             return
 
         self.status_changed.emit(
@@ -348,7 +353,7 @@ class NetworkManager(QObject):
                 )
 
                 request_type = request.get("type")
-                if request_type in {"GESTIONE_TURNI_ACCOUNTS_LIST", "GESTIONE_TURNI_ACCOUNT_AUTH", "GESTIONE_TURNI_ACCOUNT_CREATE"}:
+                if request_type in {"GESTIONE_TURNI_ACCOUNTS_LIST", "GESTIONE_TURNI_ACCOUNT_AUTH", "GESTIONE_TURNI_ACCOUNT_CREATE", "GESTIONE_TURNI_ACCOUNT_DELETE"}:
                     response = self._handle_account_rpc(request)
                     try:
                         connection.sendall(json.dumps(response).encode("utf-8"))
@@ -434,24 +439,48 @@ class NetworkManager(QObject):
 
     @classmethod
     def discover_server_once(cls) -> str | None:
-        encoded = json.dumps({"type": DISCOVERY_MESSAGE, "doctor_id": "launcher"}).encode("utf-8")
+        request = {"type": DISCOVERY_MESSAGE, "doctor_id": "launcher"}
+        encoded = json.dumps(request).encode("utf-8")
+        candidates: set[str] = set()
+
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 sock.settimeout(0.8)
-                for dest in (("255.255.255.255", DISCOVERY_PORT), ("127.0.0.1", DISCOVERY_PORT)):
-                    try: sock.sendto(encoded, dest)
-                    except OSError: pass
+
+                for destination in (
+                    ("255.255.255.255", DISCOVERY_PORT),
+                    ("127.0.0.1", DISCOVERY_PORT),
+                ):
+                    try:
+                        sock.sendto(encoded, destination)
+                    except OSError:
+                        pass
+
                 deadline = time.monotonic() + 0.8
                 while time.monotonic() < deadline:
-                    try: raw, sender = sock.recvfrom(4096)
-                    except socket.timeout: break
+                    try:
+                        raw, sender = sock.recvfrom(4096)
+                    except socket.timeout:
+                        break
+
                     response = cls._decode_message(raw)
-                    if response.get("type") == DISCOVERY_RESPONSE:
-                        return "127.0.0.1" if sender[0] == "127.0.0.1" else str(response.get("server_ip") or sender[0])
+                    if response.get("type") != DISCOVERY_RESPONSE:
+                        continue
+
+                    if sender[0] == "127.0.0.1":
+                        candidates.add("127.0.0.1")
+                    else:
+                        address = str(response.get("server_ip") or sender[0]).strip()
+                        if address:
+                            candidates.add(address)
         except OSError:
             return None
-        return None
+
+        if not candidates:
+            return None
+
+        return min(candidates, key=cls._server_sort_key)
 
     @classmethod
     def account_rpc(cls, request: dict[str, Any], server_address: str | None = None) -> dict[str, Any] | None:
@@ -468,100 +497,111 @@ class NetworkManager(QObject):
 
     def _discover_server(
         self,
+        *,
+        exclude_addresses: set[str] | None = None,
+        include_loopback: bool = True,
     ) -> str | None:
         request = {
             "type": DISCOVERY_MESSAGE,
             "doctor_id": self.doctor_id,
         }
-
-        encoded_request = json.dumps(
-            request
-        ).encode("utf-8")
+        encoded_request = json.dumps(request).encode("utf-8")
+        excluded = {str(value).strip() for value in (exclude_addresses or set()) if str(value).strip()}
+        candidates: set[str] = set()
 
         try:
-            with socket.socket(
-                socket.AF_INET,
-                socket.SOCK_DGRAM,
-            ) as discovery_socket:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as discovery_socket:
                 discovery_socket.setsockopt(
                     socket.SOL_SOCKET,
                     socket.SO_BROADCAST,
                     1,
                 )
+                discovery_socket.settimeout(DISCOVERY_TIMEOUT_SECONDS)
 
-                discovery_socket.settimeout(
-                    DISCOVERY_TIMEOUT_SECONDS
-                )
-
-                destinations = [
-                    (
-                        "255.255.255.255",
-                        DISCOVERY_PORT,
-                    ),
-                    (
-                        "127.0.0.1",
-                        DISCOVERY_PORT,
-                    ),
-                ]
+                destinations = [("255.255.255.255", DISCOVERY_PORT)]
+                if include_loopback:
+                    destinations.append(("127.0.0.1", DISCOVERY_PORT))
 
                 for destination in destinations:
                     try:
-                        discovery_socket.sendto(
-                            encoded_request,
-                            destination,
-                        )
-
+                        discovery_socket.sendto(encoded_request, destination)
                     except OSError:
                         continue
 
-                deadline = (
-                    time.monotonic()
-                    + DISCOVERY_TIMEOUT_SECONDS
-                )
-
+                deadline = time.monotonic() + DISCOVERY_TIMEOUT_SECONDS
                 while (
                     not self._stop_event.is_set()
                     and time.monotonic() < deadline
                 ):
                     try:
-                        raw_response, sender = (
-                            discovery_socket.recvfrom(
-                                4096
-                            )
-                        )
-
+                        raw_response, sender = discovery_socket.recvfrom(4096)
                     except socket.timeout:
                         break
-
                     except OSError:
                         return None
 
-                    response = (
-                        self._decode_message(
-                            raw_response
-                        )
-                    )
-
-                    if (
-                        response.get("type")
-                        != DISCOVERY_RESPONSE
-                    ):
+                    response = self._decode_message(raw_response)
+                    if response.get("type") != DISCOVERY_RESPONSE:
                         continue
 
-                    server_ip = str(
-                        response.get("server_ip")
-                        or sender[0]
-                    )
-
                     if sender[0] == "127.0.0.1":
-                        return "127.0.0.1"
+                        if not include_loopback:
+                            continue
+                        server_ip = "127.0.0.1"
+                    else:
+                        server_ip = str(response.get("server_ip") or sender[0]).strip()
 
-                    return server_ip
+                    if not server_ip or server_ip in excluded:
+                        continue
+                    candidates.add(server_ip)
 
         except OSError:
             return None
 
-        return None
+        if not candidates:
+            return None
+
+        # Se per una partenza simultanea rispondono più Server, tutti i PC
+        # scelgono lo stesso in modo deterministico invece del primo pacchetto
+        # UDP arrivato. Questo evita due display TV indipendenti sulla LAN.
+        return min(candidates, key=self._server_sort_key)
+
+    def _run_server_reconciliation(self) -> None:
+        local_address = self._get_local_ip()
+
+        while not self._stop_event.is_set() and self.role == "server":
+            if self._stop_event.wait(SERVER_RECONCILE_INTERVAL_SECONDS):
+                return
+
+            other_server = self._discover_server(
+                exclude_addresses={local_address, "127.0.0.1"},
+                include_loopback=False,
+            )
+            if not other_server:
+                continue
+
+            # Regola stabile: tra più Server sopravvive quello con IP più
+            # basso. Il/i Server con IP maggiore diventano Client e quindi
+            # tutti i medici confluiscono nello stesso stato condiviso.
+            if self._server_sort_key(other_server) >= self._server_sort_key(local_address):
+                continue
+
+            self.status_changed.emit(
+                "Rilevato un altro server di rete. "
+                "Unificazione automatica del display..."
+            )
+            self._close_server_sockets()
+            time.sleep(0.15)
+            self._run_as_client(other_server)
+            return
+
+    @staticmethod
+    def _server_sort_key(address: str) -> tuple[int, ...]:
+        clean = str(address or "").strip()
+        try:
+            return tuple(int(part) for part in clean.split("."))
+        except (TypeError, ValueError):
+            return (999, 999, 999, 999)
 
     def _run_as_client(
         self,

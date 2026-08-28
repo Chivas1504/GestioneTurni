@@ -29,6 +29,7 @@ class SyncManager(QObject):
 
         self.shared_state = shared_state
         self._network_role = "starting"
+        self._awaiting_initial_state = False
 
         self.shared_state.local_state_changed.connect(
             self._on_local_state_changed
@@ -55,6 +56,7 @@ class SyncManager(QObject):
         self._network_role = role
 
         if role == "server":
+            self._awaiting_initial_state = False
             self.sync_status_changed.emit(
                 "Sincronizzazione: stato condiviso "
                 "gestito da questo computer."
@@ -64,6 +66,7 @@ class SyncManager(QObject):
             self._emit_complete_state()
 
         elif role == "client":
+            self._awaiting_initial_state = True
             self.sync_status_changed.emit(
                 "Sincronizzazione: collegato al Server."
             )
@@ -187,6 +190,9 @@ class SyncManager(QObject):
         if not isinstance(complete_state, dict):
             return
 
+        local_doctor_id = self.shared_state.local_doctor_id
+        server_knows_local_account = local_doctor_id in complete_state
+
         try:
             self.shared_state.apply_complete_state(
                 complete_state
@@ -197,6 +203,17 @@ class SyncManager(QObject):
                 "non valido ignorato."
             )
             return
+
+        # Al primo collegamento il Server è autorevole se conosce già
+        # questo account (caso medico + segretaria sullo stesso profilo).
+        # Se invece l'account del Client non esiste ancora nello stato del
+        # Server, pubblichiamo subito il suo stato locale: in questo modo
+        # code appartenenti a medici diversi compaiono immediatamente nello
+        # stesso display TV, senza aspettare il primo +1 o un'altra azione.
+        if self._network_role == "client" and self._awaiting_initial_state:
+            self._awaiting_initial_state = False
+            if not server_knows_local_account:
+                self._emit_local_state()
 
         self.sync_status_changed.emit(
             "Sincronizzazione completata."
