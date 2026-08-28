@@ -79,6 +79,9 @@ class AppController(QObject):
         self._patient_prefix = self._clean_queue_prefix(
             self.config.get("patient_prefix", "")
         )
+        self._patient_paused_at = self._safe_timestamp(
+            self.config.get("patient_paused_at")
+        )
 
         if not self.queue_active:
             self._clear_patient_timer_state(save=True)
@@ -98,6 +101,10 @@ class AppController(QObject):
             local_queue_prefix=self.queue_prefix,
             local_number=current_number,
             local_queue_active=self.queue_active,
+            local_patient_started_at=self._patient_started_at,
+            local_patient_number=self._patient_number,
+            local_patient_prefix=self._patient_prefix,
+            local_patient_paused_at=self._patient_paused_at,
         )
 
         self.sync_manager = SyncManager(
@@ -591,6 +598,8 @@ class AppController(QObject):
             "started_at": self._patient_started_at,
             "number": self._patient_number,
             "queue_prefix": self._patient_prefix,
+            "paused": active and self._patient_paused_at is not None,
+            "paused_at": self._patient_paused_at,
             "ticket": (
                 f"{self._patient_prefix}{self._patient_number}"
                 if active
@@ -598,11 +607,29 @@ class AppController(QObject):
             ),
         }
 
+    def toggle_patient_timer_pause(self) -> None:
+        if self._patient_started_at is None or self._patient_number is None:
+            return
+
+        now = time.time()
+        if self._patient_paused_at is None:
+            self._patient_paused_at = now
+        else:
+            paused_duration = max(0.0, now - self._patient_paused_at)
+            self._patient_started_at += paused_duration
+            self._patient_paused_at = None
+
+        self._save_patient_timer_state()
+        self._sync_patient_timer_state()
+        self.patient_timer_changed.emit(self.get_current_patient_timer())
+
     def _start_patient_timer(self, patient_number: int) -> None:
         self._patient_started_at = time.time()
         self._patient_number = self._safe_number(patient_number)
         self._patient_prefix = self.queue_prefix
+        self._patient_paused_at = None
         self._save_patient_timer_state()
+        self._sync_patient_timer_state()
         self.patient_timer_changed.emit(
             self.get_current_patient_timer()
         )
@@ -614,7 +641,11 @@ class AppController(QObject):
         ):
             return
 
-        ended_at = time.time()
+        ended_at = (
+            self._patient_paused_at
+            if self._patient_paused_at is not None
+            else time.time()
+        )
         try:
             record_patient_visit(
                 doctor_id=self.doctor_id,
@@ -631,23 +662,38 @@ class AppController(QObject):
             )
 
         self._clear_patient_timer_state(save=True)
+        self._sync_patient_timer_state()
         self.patient_timer_changed.emit(
             self.get_current_patient_timer()
+        )
+
+    def _sync_patient_timer_state(self) -> None:
+        self.shared_state.update_local_patient_timer(
+            started_at=self._patient_started_at,
+            patient_number=self._patient_number,
+            patient_prefix=self._patient_prefix,
+            paused_at=self._patient_paused_at,
         )
 
     def _save_patient_timer_state(self) -> None:
         self.config["patient_started_at"] = self._patient_started_at
         self.config["patient_number"] = self._patient_number
         self.config["patient_prefix"] = self._patient_prefix
+        if self._patient_paused_at is None:
+            self.config.pop("patient_paused_at", None)
+        else:
+            self.config["patient_paused_at"] = self._patient_paused_at
         save_config(self.config)
 
     def _clear_patient_timer_state(self, *, save: bool) -> None:
         self._patient_started_at = None
         self._patient_number = None
         self._patient_prefix = ""
+        self._patient_paused_at = None
         self.config.pop("patient_started_at", None)
         self.config.pop("patient_number", None)
         self.config.pop("patient_prefix", None)
+        self.config.pop("patient_paused_at", None)
         if save:
             save_config(self.config)
 
@@ -710,7 +756,30 @@ class AppController(QObject):
             self.config["queue_active"] = self.queue_active
             self.config["doctor_name"] = self.doctor_name
             self.config["queue_prefix"] = self.queue_prefix
-            save_config(self.config)
+
+            remote_started_at = self._safe_timestamp(local_state.get("patient_started_at"))
+            remote_number = self._safe_optional_number(local_state.get("patient_number"))
+            remote_prefix = self._clean_queue_prefix(local_state.get("patient_prefix", ""))
+            remote_paused_at = self._safe_timestamp(local_state.get("patient_paused_at"))
+            timer_changed = (
+                remote_started_at != self._patient_started_at
+                or remote_number != self._patient_number
+                or remote_prefix != self._patient_prefix
+                or remote_paused_at != self._patient_paused_at
+            )
+            self._patient_started_at = remote_started_at
+            self._patient_number = remote_number
+            self._patient_prefix = remote_prefix
+            self._patient_paused_at = remote_paused_at
+            if self._patient_started_at is None or self._patient_number is None:
+                self._patient_started_at = None
+                self._patient_number = None
+                self._patient_prefix = ""
+                self._patient_paused_at = None
+            self._save_patient_timer_state()
+
+            if timer_changed:
+                self.patient_timer_changed.emit(self.get_current_patient_timer())
 
         self.state_changed.emit(
             complete_state

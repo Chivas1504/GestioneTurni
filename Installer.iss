@@ -1,5 +1,5 @@
 #define MyAppName "Gestione Turni"
-#define MyAppVersion "1.7.1"
+#define MyAppVersion "1.7.2"
 #define MyAppPublisher "Mattia Franco"
 #define MyAppExeName "GestioneTurni.exe"
 #define MyAppIconName "gestione_turni.ico"

@@ -12,7 +12,7 @@ class SharedState(QObject):
     state_changed = Signal(object)
     local_state_changed = Signal(object)
 
-    def __init__(self, local_doctor_id: str, local_doctor_name: str, local_queue_prefix: str = "", local_number: int = 0, local_queue_active: bool = False) -> None:
+    def __init__(self, local_doctor_id: str, local_doctor_name: str, local_queue_prefix: str = "", local_number: int = 0, local_queue_active: bool = False, local_patient_started_at: float | None = None, local_patient_number: int | None = None, local_patient_prefix: str = "", local_patient_paused_at: float | None = None) -> None:
         super().__init__()
         validate_doctor_id(local_doctor_id)
         self.local_doctor_id = local_doctor_id
@@ -24,6 +24,10 @@ class SharedState(QObject):
             "queue_prefix": local_queue_prefix,
             "number": local_number,
             "queue_active": local_queue_active,
+            "patient_started_at": local_patient_started_at,
+            "patient_number": local_patient_number,
+            "patient_prefix": local_patient_prefix,
+            "patient_paused_at": local_patient_paused_at,
             "online": True,
             "updated_at": time.time(),
         })
@@ -37,7 +41,9 @@ class SharedState(QObject):
         with self._lock:
             return deepcopy(self._state.get(doctor_id, {
                 "doctor_id": doctor_id, "doctor_name": "", "queue_prefix": "", "number": 0,
-                "queue_active": False, "online": False, "updated_at": 0.0,
+                "queue_active": False, "patient_started_at": None, "patient_number": None,
+                "patient_prefix": "", "patient_paused_at": None,
+                "online": False, "updated_at": 0.0,
             }))
 
     def get_local_doctor(self) -> dict[str, Any]:
@@ -61,6 +67,29 @@ class SharedState(QObject):
                 current["online"] = bool(online)
             current["updated_at"] = time.time()
             self._state[self.local_doctor_id] = normalise_doctor_state(current, expected_doctor_id=self.local_doctor_id)
+            local_copy = deepcopy(self._state[self.local_doctor_id])
+            all_copy = deepcopy(self._state)
+        self.local_state_changed.emit(local_copy)
+        self.state_changed.emit(all_copy)
+
+    def update_local_patient_timer(
+        self,
+        *,
+        started_at: float | None,
+        patient_number: int | None,
+        patient_prefix: str = "",
+        paused_at: float | None = None,
+    ) -> None:
+        with self._lock:
+            current = self.get_doctor(self.local_doctor_id)
+            current["patient_started_at"] = started_at
+            current["patient_number"] = patient_number
+            current["patient_prefix"] = patient_prefix
+            current["patient_paused_at"] = paused_at
+            current["updated_at"] = time.time()
+            self._state[self.local_doctor_id] = normalise_doctor_state(
+                current, expected_doctor_id=self.local_doctor_id
+            )
             local_copy = deepcopy(self._state[self.local_doctor_id])
             all_copy = deepcopy(self._state)
         self.local_state_changed.emit(local_copy)

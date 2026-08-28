@@ -175,6 +175,21 @@ class MainWindow(QMainWindow):
         )
         self.patient_timer_label.setFixedHeight(34)
 
+        self.patient_pause_button = QPushButton("⏸ Pausa timer")
+        self.patient_pause_button.setObjectName("patientPauseButton")
+        self.patient_pause_button.setFixedHeight(34)
+        self.patient_pause_button.setFixedWidth(150)
+        self.patient_pause_button.setEnabled(False)
+        self.patient_pause_button.clicked.connect(
+            self.controller.toggle_patient_timer_pause
+        )
+
+        self.patient_timer_layout = QHBoxLayout()
+        self.patient_timer_layout.setContentsMargins(0, 0, 0, 0)
+        self.patient_timer_layout.setSpacing(8)
+        self.patient_timer_layout.addWidget(self.patient_timer_label, stretch=1)
+        self.patient_timer_layout.addWidget(self.patient_pause_button)
+
         self.patient_timer = QTimer(self)
         self.patient_timer.setInterval(1000)
         self.patient_timer.timeout.connect(
@@ -193,6 +208,10 @@ class MainWindow(QMainWindow):
             )
             self.patient_timer_label.setProperty("active", False)
             self.patient_timer_label.setProperty("warning", False)
+            self.patient_pause_button.setEnabled(False)
+            self.patient_pause_button.setText("⏸ Pausa timer")
+            self.patient_pause_button.setProperty("paused", False)
+            self._refresh_widget_style(self.patient_pause_button)
             self._refresh_widget_style(
                 self.patient_timer_label
             )
@@ -203,7 +222,13 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             started_at = time.time()
 
-        elapsed = max(0, int(time.time() - started_at))
+        paused = bool(timer_state.get("paused", False))
+        try:
+            paused_at = float(timer_state.get("paused_at", 0.0))
+        except (TypeError, ValueError):
+            paused_at = 0.0
+        effective_now = paused_at if paused and paused_at > 0 else time.time()
+        elapsed = max(0, int(effective_now - started_at))
         hours, remainder = divmod(elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
         ticket = str(timer_state.get("ticket", "")).strip()
@@ -230,8 +255,12 @@ class MainWindow(QMainWindow):
         warning_minutes = max(1, min(warning_minutes, 240))
         warning_active = (
             warning_enabled
+            and not paused
             and elapsed >= warning_minutes * 60
         )
+
+        if paused:
+            self._close_patient_warning_dialog()
 
         if warning_active:
             if (
@@ -252,11 +281,18 @@ class MainWindow(QMainWindow):
                 warning_minutes=warning_minutes,
             )
         else:
+            suffix = " · IN PAUSA" if paused else ""
             self.patient_timer_label.setText(
                 f"Tempo paziente {ticket}: "
-                f"{elapsed_text}"
+                f"{elapsed_text}{suffix}"
             )
 
+        self.patient_pause_button.setEnabled(True)
+        self.patient_pause_button.setText(
+            "▶ Riprendi timer" if paused else "⏸ Pausa timer"
+        )
+        self.patient_pause_button.setProperty("paused", paused)
+        self._refresh_widget_style(self.patient_pause_button)
         self.patient_timer_label.setProperty("active", True)
         self.patient_timer_label.setProperty("warning", warning_active)
         self._refresh_widget_style(
@@ -527,8 +563,8 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(
             self.doctor_card
         )
-        self.main_layout.addWidget(
-            self.patient_timer_label
+        self.main_layout.addLayout(
+            self.patient_timer_layout
         )
 
         self.main_layout.addWidget(
@@ -576,6 +612,8 @@ class MainWindow(QMainWindow):
             )
             self.subtitle_label.setStyleSheet("font-size: 15px;")
             self.patient_timer_label.setFixedHeight(30)
+            self.patient_pause_button.setFixedHeight(30)
+            self.patient_pause_button.setFixedWidth(135)
             self.queue_status_label.setFixedHeight(22)
             self.queue_button.setFixedHeight(50)
             self.display_button.setFixedHeight(40)
@@ -590,6 +628,8 @@ class MainWindow(QMainWindow):
             self.title_label.setStyleSheet("")
             self.subtitle_label.setStyleSheet("")
             self.patient_timer_label.setFixedHeight(34)
+            self.patient_pause_button.setFixedHeight(34)
+            self.patient_pause_button.setFixedWidth(150)
             self.queue_status_label.setFixedHeight(24)
             self.queue_button.setFixedHeight(56)
             self.display_button.setFixedHeight(46)
@@ -906,6 +946,30 @@ class MainWindow(QMainWindow):
             background-color: #fee4e2;
             border: 1px solid #fda29b;
             border-radius: 8px;
+        }
+
+        QPushButton#patientPauseButton {
+            background-color: #dce8f1;
+            color: #234f6e;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            padding: 2px 10px;
+        }
+
+        QPushButton#patientPauseButton:hover {
+            background-color: #cfdee9;
+        }
+
+        QPushButton#patientPauseButton[paused="true"] {
+            background-color: #fff0c2;
+            color: #7a4d00;
+        }
+
+        QPushButton#patientPauseButton:disabled {
+            background-color: #edf2f6;
+            color: #9aa9b5;
         }
 
         QLabel#networkSummary {
