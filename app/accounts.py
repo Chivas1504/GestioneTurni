@@ -127,7 +127,7 @@ class AccountStore:
                     updated[key] = bool(values.get(key))
             if "patient_time_warning_minutes" in values:
                 try:
-                    updated["patient_time_warning_minutes"] = max(1, min(int(values[key]), 240))
+                    updated["patient_time_warning_minutes"] = max(1, min(int(values["patient_time_warning_minutes"]), 240))
                 except (TypeError, ValueError):
                     pass
             for key in ("password_salt", "password_hash", "password_iterations"):
