@@ -23,7 +23,7 @@ from app.about_dialog import AboutDialog
 from app.password_dialogs import ChangePasswordDialog
 from app.resources import app_icon
 from app.version import APP_VERSION
-
+from app.updater import UpdateManager
 
 class SettingsDialog(QDialog):
     def __init__(
@@ -184,7 +184,13 @@ class SettingsDialog(QDialog):
         self.delete_account_button.setMinimumHeight(46)
         self.delete_account_button.setEnabled(self.delete_account_callback is not None)
         self.delete_account_button.clicked.connect(self._delete_account)
-
+        self.update_manager = UpdateManager(self)
+        self.check_updates_button = QPushButton("🔄 Controlla aggiornamenti")
+        self.check_updates_button.setObjectName("settingsUpdateButton")
+        self.check_updates_button.setMinimumHeight(46)
+        self.check_updates_button.clicked.connect(
+            lambda: self.update_manager.check_for_updates(manual=True)
+)
         self.version_label = QLabel(
             f"Gestione Turni · Versione {APP_VERSION}"
         )
@@ -289,6 +295,10 @@ class SettingsDialog(QDialog):
         scroll_layout.addWidget(section_security)
         scroll_layout.addWidget(self.change_password_button)
         scroll_layout.addWidget(self.delete_account_button)
+
+        scroll_layout.addSpacing(8)
+        scroll_layout.addWidget(self.check_updates_button)
+
         scroll_layout.addStretch()
 
         scroll_area.setWidget(scroll_content)
@@ -366,13 +376,15 @@ class SettingsDialog(QDialog):
             }
 
             QPushButton#settingsAboutButton,
-            QPushButton#settingsPasswordButton {
+            QPushButton#settingsPasswordButton,
+            QPushButton#settingsUpdateButton {
                 background-color: #dce8f1;
                 color: #234f6e;
             }
 
             QPushButton#settingsAboutButton:hover,
-            QPushButton#settingsPasswordButton:hover {
+            QPushButton#settingsPasswordButton:hover,
+            QPushButton#settingsUpdateButton:hover {
                 background-color: #cfdee9;
             }
 
