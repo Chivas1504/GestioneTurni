@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
 # =========================================================
 
-CURRENT_VERSION = "1.7.9"
+CURRENT_VERSION = "1.7.10"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -618,7 +618,6 @@ class UpdateManager(QObject):
 
         import os
         import subprocess
-        import tempfile
 
         if self.download_message:
             self.download_message.close()
@@ -649,6 +648,7 @@ class UpdateManager(QObject):
         if sys.platform != "win32":
 
             try:
+
                 subprocess.Popen(
                     [str(installer)]
                 )
@@ -673,56 +673,58 @@ class UpdateManager(QObject):
 
             current_pid = os.getpid()
 
-            helper_path = (
-                Path(tempfile.gettempdir())
-                / "GestioneTurni_update.cmd"
+            # PowerShell esterno:
+            # 1. aspetta che Gestione Turni termini;
+            # 2. se dopo 15 secondi è ancora aperto, lo termina;
+            # 3. avvia l'installer soltanto dopo.
+            escaped_installer = (
+                str(installer)
+                .replace("'", "''")
             )
 
-            helper_content = f"""@echo off
-    setlocal
+            powershell_script = (
+                f"$pidDaAttendere = {current_pid}; "
+                f"$installer = '{escaped_installer}'; "
+                "$timeout = 15; "
+                "$elapsed = 0; "
 
-    set APP_PID={current_pid}
-    set INSTALLER={installer}
+                "while ("
+                "Get-Process -Id $pidDaAttendere "
+                "-ErrorAction SilentlyContinue"
+                ") { "
 
-    rem Aspetta fino a 20 secondi che Gestione Turni si chiuda normalmente.
-    for /L %%i in (1,1,20) do (
-        tasklist /FI "PID eq %APP_PID%" 2>NUL | find "%APP_PID%" >NUL
+                "if ($elapsed -ge $timeout) { "
+                "Stop-Process "
+                "-Id $pidDaAttendere "
+                "-Force "
+                "-ErrorAction SilentlyContinue; "
+                "break; "
+                "} "
 
-        if errorlevel 1 goto START_INSTALLER
+                "Start-Sleep -Seconds 1; "
+                "$elapsed++; "
+                "} "
 
-        timeout /t 1 /nobreak >NUL
-    )
+                "Start-Sleep -Seconds 1; "
 
-    rem Se dopo 20 secondi Gestione Turni è ancora aperto,
-    rem termina soltanto il vecchio processo dell'app.
-    taskkill /PID %APP_PID% /T /F >NUL 2>&1
-
-    timeout /t 2 /nobreak >NUL
-
-    :START_INSTALLER
-    start "" "%INSTALLER%"
-
-    rem Elimina il file helper dopo l'avvio dell'installer.
-    del "%~f0"
-
-    endlocal
-    """
-
-            helper_path.write_text(
-                helper_content,
-                encoding="utf-8",
+                "Start-Process "
+                "-FilePath $installer"
             )
 
             creation_flags = (
                 subprocess.CREATE_NEW_PROCESS_GROUP
                 | subprocess.DETACHED_PROCESS
+                | subprocess.CREATE_NO_WINDOW
             )
 
             subprocess.Popen(
                 [
-                    "cmd.exe",
-                    "/c",
-                    str(helper_path),
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    powershell_script,
                 ],
                 creationflags=creation_flags,
                 close_fds=True,
@@ -743,4 +745,8 @@ class UpdateManager(QObject):
             return
 
         QApplication.closeAllWindows()
-        QApplication.quit()
+
+        QTimer.singleShot(
+            100,
+            QApplication.quit,
+        )
