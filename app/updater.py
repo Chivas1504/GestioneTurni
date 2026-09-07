@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTI
 # =========================================================
 
-CURRENT_VERSION = "1.8.6"
+CURRENT_VERSION = "1.8.7"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
