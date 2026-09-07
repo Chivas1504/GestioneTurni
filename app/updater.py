@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
 # =========================================================
 
-CURRENT_VERSION = "1.8.1"
+CURRENT_VERSION = "1.8.2"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -332,7 +332,8 @@ class UpdateChecker(QObject):
                                     self.download_progress.emit(
                                         min(percent, 100)
                                     )
-
+                                    if downloaded >= total:
+                                        break
                     if destination.exists():
                         destination.unlink()
 
