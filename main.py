@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import QApplication, QDialog
 
@@ -15,7 +16,7 @@ from app.resources import app_icon
 from app.storage import set_active_storage_profile
 from app.version import APP_NAME, APP_VERSION
 from app.window import MainWindow
-
+from app.updater import UpdateManager
 
 def migrate_legacy_accounts(store: AccountStore) -> None:
     for legacy_id in ("doctor1", "doctor2"):
@@ -136,6 +137,11 @@ def main() -> None:
     window = MainWindow(controller)
     window.show()
     controller.start()
+    window.update_manager = UpdateManager(window)
+    QTimer.singleShot(
+        2500,
+        window.update_manager.check_for_updates,
+    )
 
     exit_code = app.exec()
     logging.info("Chiusura applicazione con codice %s", exit_code)
