@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
 # =========================================================
 
-CURRENT_VERSION = "1.7.6"
+CURRENT_VERSION = "1.7.9"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -616,7 +616,9 @@ class UpdateManager(QObject):
         installer_path,
     ):
 
+        import os
         import subprocess
+        import tempfile
 
         if self.download_message:
             self.download_message.close()
@@ -639,45 +641,92 @@ class UpdateManager(QObject):
             "Aggiornamento pronto",
             (
                 "L'aggiornamento è stato scaricato.\n\n"
-                "Gestione Turni verrà ora chiuso "
-                "automaticamente e partirà "
-                "l'installazione della nuova versione."
+                "Gestione Turni verrà chiuso e "
+                "l'installazione partirà automaticamente."
             ),
         )
 
-        try:
+        if sys.platform != "win32":
 
-            if sys.platform == "win32":
-
-                # Avviamo un processo Windows indipendente.
-                # Aspetta qualche secondo, così Gestione Turni
-                # può chiudersi completamente, poi apre
-                # l'installer.
-                command = (
-                    'timeout /t 3 /nobreak >nul '
-                    f'& start "" "{installer}"'
-                )
-
-                creation_flags = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP
-                    | subprocess.DETACHED_PROCESS
-                )
-
-                subprocess.Popen(
-                    [
-                        "cmd.exe",
-                        "/c",
-                        command,
-                    ],
-                    creationflags=creation_flags,
-                    close_fds=True,
-                )
-
-            else:
-
+            try:
                 subprocess.Popen(
                     [str(installer)]
                 )
+
+                QApplication.quit()
+
+            except Exception as error:
+
+                QMessageBox.critical(
+                    self.parent_window,
+                    "Aggiornamento",
+                    (
+                        "Impossibile avviare "
+                        "l'installer:\n\n"
+                        f"{error}"
+                    ),
+                )
+
+            return
+
+        try:
+
+            current_pid = os.getpid()
+
+            helper_path = (
+                Path(tempfile.gettempdir())
+                / "GestioneTurni_update.cmd"
+            )
+
+            helper_content = f"""@echo off
+    setlocal
+
+    set APP_PID={current_pid}
+    set INSTALLER={installer}
+
+    rem Aspetta fino a 20 secondi che Gestione Turni si chiuda normalmente.
+    for /L %%i in (1,1,20) do (
+        tasklist /FI "PID eq %APP_PID%" 2>NUL | find "%APP_PID%" >NUL
+
+        if errorlevel 1 goto START_INSTALLER
+
+        timeout /t 1 /nobreak >NUL
+    )
+
+    rem Se dopo 20 secondi Gestione Turni è ancora aperto,
+    rem termina soltanto il vecchio processo dell'app.
+    taskkill /PID %APP_PID% /T /F >NUL 2>&1
+
+    timeout /t 2 /nobreak >NUL
+
+    :START_INSTALLER
+    start "" "%INSTALLER%"
+
+    rem Elimina il file helper dopo l'avvio dell'installer.
+    del "%~f0"
+
+    endlocal
+    """
+
+            helper_path.write_text(
+                helper_content,
+                encoding="utf-8",
+            )
+
+            creation_flags = (
+                subprocess.CREATE_NEW_PROCESS_GROUP
+                | subprocess.DETACHED_PROCESS
+            )
+
+            subprocess.Popen(
+                [
+                    "cmd.exe",
+                    "/c",
+                    str(helper_path),
+                ],
+                creationflags=creation_flags,
+                close_fds=True,
+            )
 
         except Exception as error:
 
@@ -693,35 +742,5 @@ class UpdateManager(QObject):
 
             return
 
-        # Chiude prima tutte le finestre.
         QApplication.closeAllWindows()
-
-        # Poi termina completamente l'applicazione.
-        QTimer.singleShot(
-            200,
-            QApplication.quit,
-    )
-    # =====================================================
-    # DOWNLOAD FALLITO
-    # =====================================================
-
-    def on_download_failed(
-        self,
-        message,
-    ):
-
-        if self.download_message:
-
-            self.download_message.close()
-
-            self.download_message = None
-
-        QMessageBox.warning(
-            self.parent_window,
-            "Aggiornamento",
-            (
-                "Impossibile scaricare "
-                "l'aggiornamento.\n\n"
-                f"{message}"
-            ),
-        )
+        QApplication.quit()
