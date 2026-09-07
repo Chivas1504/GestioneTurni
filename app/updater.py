@@ -616,15 +616,13 @@ class UpdateManager(QObject):
         installer_path,
     ):
 
+        import subprocess
+
         if self.download_message:
-
             self.download_message.close()
-
             self.download_message = None
 
-        installer = Path(
-            installer_path
-        )
+        installer = Path(installer_path)
 
         if not installer.exists():
 
@@ -640,11 +638,10 @@ class UpdateManager(QObject):
             self.parent_window,
             "Aggiornamento pronto",
             (
-                "L'aggiornamento è stato "
-                "scaricato.\n\n"
-                "Gestione Turni verrà chiuso "
-                "e partirà automaticamente "
-                "l'installer."
+                "L'aggiornamento è stato scaricato.\n\n"
+                "Gestione Turni verrà ora chiuso "
+                "automaticamente e partirà "
+                "l'installazione della nuova versione."
             ),
         )
 
@@ -652,13 +649,31 @@ class UpdateManager(QObject):
 
             if sys.platform == "win32":
 
-                os.startfile(
-                    str(installer)
+                # Avviamo un processo Windows indipendente.
+                # Aspetta qualche secondo, così Gestione Turni
+                # può chiudersi completamente, poi apre
+                # l'installer.
+                command = (
+                    'timeout /t 3 /nobreak >nul '
+                    f'& start "" "{installer}"'
+                )
+
+                creation_flags = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | subprocess.DETACHED_PROCESS
+                )
+
+                subprocess.Popen(
+                    [
+                        "cmd.exe",
+                        "/c",
+                        command,
+                    ],
+                    creationflags=creation_flags,
+                    close_fds=True,
                 )
 
             else:
-
-                import subprocess
 
                 subprocess.Popen(
                     [str(installer)]
@@ -670,21 +685,22 @@ class UpdateManager(QObject):
                 self.parent_window,
                 "Aggiornamento",
                 (
-                    "Impossibile avviare "
-                    "l'installer:\n\n"
+                    "Impossibile preparare "
+                    "l'aggiornamento:\n\n"
                     f"{error}"
                 ),
             )
 
             return
 
-        # Lasciamo partire l'installer
-        # e subito dopo chiudiamo l'app.
-        QTimer.singleShot(
-            300,
-            QApplication.quit,
-        )
+        # Chiude prima tutte le finestre.
+        QApplication.closeAllWindows()
 
+        # Poi termina completamente l'applicazione.
+        QTimer.singleShot(
+            200,
+            QApplication.quit,
+    )
     # =====================================================
     # DOWNLOAD FALLITO
     # =====================================================
