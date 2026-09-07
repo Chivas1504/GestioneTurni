@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -15,10 +18,10 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 
 # =========================================================
-# GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
+# GESTIONE TURNI - AGGIORNAMENTI
 # =========================================================
 
-CURRENT_VERSION = "1.8.5"
+CURRENT_VERSION = "1.8.6"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -67,15 +70,11 @@ def is_newer_version(candidate: str, current: str) -> bool:
 class UpdateChecker(QObject):
 
     update_available = Signal(object)
-
     no_update = Signal()
-
     check_failed = Signal(str)
 
     download_progress = Signal(int)
-
     installer_ready = Signal(str)
-
     download_failed = Signal(str)
 
     def __init__(self, parent=None):
@@ -92,7 +91,6 @@ class UpdateChecker(QObject):
         def worker():
 
             try:
-
                 request = urllib.request.Request(
                     LATEST_RELEASE_API,
                     headers={
@@ -105,7 +103,6 @@ class UpdateChecker(QObject):
                     request,
                     timeout=10,
                 ) as response:
-
                     data = json.loads(
                         response.read().decode("utf-8")
                     )
@@ -120,18 +117,15 @@ class UpdateChecker(QObject):
                         "un numero di versione valido."
                     )
 
-                # Nessun aggiornamento
                 if not is_newer_version(
                     tag,
                     CURRENT_VERSION,
                 ):
-
                     if show_no_update:
                         self.no_update.emit()
 
                     return
 
-                # Cerchiamo l'installer allegato alla release
                 installer = None
 
                 for asset in data.get("assets", []):
@@ -154,7 +148,6 @@ class UpdateChecker(QObject):
                         INSTALLER_PATTERN.match(name)
                         and download_url
                     ):
-
                         installer = {
                             "name": name,
                             "url": download_url,
@@ -194,14 +187,12 @@ class UpdateChecker(QObject):
             except urllib.error.HTTPError as error:
 
                 if error.code == 404:
-
                     self.check_failed.emit(
                         "Non è stata ancora pubblicata "
                         "nessuna GitHub Release."
                     )
 
                 else:
-
                     self.check_failed.emit(
                         f"Errore GitHub HTTP "
                         f"{error.code}."
@@ -252,9 +243,6 @@ class UpdateChecker(QObject):
 
         def worker():
 
-            import shutil
-            import time
-
             max_attempts = 3
 
             retryable_http_codes = {
@@ -273,10 +261,6 @@ class UpdateChecker(QObject):
                 update_dir = None
 
                 try:
-
-                    # Ogni tentativo usa una nuova cartella
-                    # temporanea, così non può interferire
-                    # un vecchio installer.
                     update_dir = Path(
                         tempfile.mkdtemp(
                             prefix="GestioneTurni_Update_"
@@ -331,7 +315,6 @@ class UpdateChecker(QObject):
                                 )
 
                                 if total > 0:
-
                                     percent = int(
                                         downloaded
                                         * 100
@@ -345,22 +328,15 @@ class UpdateChecker(QObject):
                                         )
                                     )
 
-                            # Forziamo la scrittura reale
-                            # del file prima di dichiarare
-                            # concluso il download.
                             file.flush()
                             os.fsync(
                                 file.fileno()
                             )
 
-                    # Se GitHub fornisce la dimensione
-                    # prevista, controlliamo che il file
-                    # sia completo.
                     if (
                         total > 0
                         and downloaded < total
                     ):
-
                         raise IOError(
                             "Download incompleto: "
                             f"{downloaded} byte "
@@ -369,7 +345,6 @@ class UpdateChecker(QObject):
                         )
 
                     if not destination.exists():
-
                         raise FileNotFoundError(
                             "Installer scaricato "
                             "non trovato."
@@ -379,14 +354,11 @@ class UpdateChecker(QObject):
                         destination.stat().st_size
                         <= 0
                     ):
-
                         raise IOError(
                             "L'installer scaricato "
                             "è vuoto."
                         )
 
-                    # Mostriamo 100% soltanto ORA,
-                    # quando il file è realmente pronto.
                     self.download_progress.emit(
                         100
                     )
@@ -402,7 +374,6 @@ class UpdateChecker(QObject):
                     last_error = error
 
                     if update_dir is not None:
-
                         shutil.rmtree(
                             update_dir,
                             ignore_errors=True,
@@ -422,7 +393,6 @@ class UpdateChecker(QObject):
                     last_error = error
 
                     if update_dir is not None:
-
                         shutil.rmtree(
                             update_dir,
                             ignore_errors=True,
@@ -433,7 +403,6 @@ class UpdateChecker(QObject):
                     last_error = error
 
                     if update_dir is not None:
-
                         shutil.rmtree(
                             update_dir,
                             ignore_errors=True,
@@ -442,7 +411,6 @@ class UpdateChecker(QObject):
                     break
 
                 if attempt < max_attempts:
-
                     time.sleep(
                         3 * attempt
                     )
@@ -451,7 +419,6 @@ class UpdateChecker(QObject):
                 last_error,
                 urllib.error.HTTPError,
             ):
-
                 self.download_failed.emit(
                     (
                         "GitHub non ha risposto "
@@ -464,7 +431,6 @@ class UpdateChecker(QObject):
                 )
 
             else:
-
                 self.download_failed.emit(
                     (
                         "Impossibile scaricare "
@@ -479,13 +445,13 @@ class UpdateChecker(QObject):
             daemon=True,
         ).start()
 
+
 class UpdateManager(QObject):
 
     def __init__(
         self,
         parent_window,
     ):
-
         super().__init__(
             parent_window
         )
@@ -499,7 +465,6 @@ class UpdateManager(QObject):
         )
 
         self.automatic_check = True
-
         self.download_message = None
 
         self.checker.update_available.connect(
@@ -652,8 +617,6 @@ class UpdateManager(QObject):
         message,
     ):
 
-        # Se è il controllo automatico
-        # non disturbiamo il medico.
         if self.automatic_check:
             return
 
@@ -673,7 +636,6 @@ class UpdateManager(QObject):
     ):
 
         if self.download_message:
-
             self.download_message.setText(
                 f"Download aggiornamento "
                 f"in corso... {percent}%"
@@ -688,38 +650,32 @@ class UpdateManager(QObject):
         installer_path,
     ):
 
-        import subprocess
-
         if self.download_message:
             self.download_message.close()
+            self.download_message.deleteLater()
             self.download_message = None
 
-        installer = Path(installer_path)
+        installer = Path(
+            installer_path
+        )
 
         if not installer.exists():
-
             QMessageBox.warning(
                 self.parent_window,
                 "Aggiornamento",
                 "Installer non trovato.",
             )
-
             return
 
-        QMessageBox.information(
-            self.parent_window,
-            "Aggiornamento pronto",
-            (
-                "L'aggiornamento è stato scaricato.\n\n"
-                "Gestione Turni verrà chiuso e "
-                "l'installazione partirà automaticamente."
-            ),
-        )
+        # IMPORTANTE:
+        # qui NON deve essere aperta una QMessageBox modale.
+        # L'helper esterno deve essere creato immediatamente;
+        # poi l'applicazione viene chiusa e PowerShell attende
+        # la terminazione del processo prima di avviare Inno Setup.
 
         if sys.platform != "win32":
 
             try:
-
                 subprocess.Popen(
                     [str(installer)]
                 )
@@ -727,7 +683,6 @@ class UpdateManager(QObject):
                 QApplication.quit()
 
             except Exception as error:
-
                 QMessageBox.critical(
                     self.parent_window,
                     "Aggiornamento",
@@ -741,13 +696,8 @@ class UpdateManager(QObject):
             return
 
         try:
-
             current_pid = os.getpid()
 
-            # PowerShell esterno:
-            # 1. aspetta che Gestione Turni termini;
-            # 2. se dopo 15 secondi è ancora aperto, lo termina;
-            # 3. avvia l'installer soltanto dopo.
             escaped_installer = (
                 str(installer)
                 .replace("'", "''")
@@ -832,9 +782,8 @@ class UpdateManager(QObject):
     ):
 
         if self.download_message:
-
             self.download_message.close()
-
+            self.download_message.deleteLater()
             self.download_message = None
 
         QMessageBox.warning(
