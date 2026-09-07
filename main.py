@@ -138,10 +138,6 @@ def main() -> None:
     window.show()
     controller.start()
     window.update_manager = UpdateManager(window)
-    QTimer.singleShot(
-        2500,
-        window.update_manager.check_for_updates,
-    )
 
     exit_code = app.exec()
     logging.info("Chiusura applicazione con codice %s", exit_code)
