@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
 # =========================================================
 
-CURRENT_VERSION = "1.7.10"
+CURRENT_VERSION = "1.8.0"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -264,6 +264,7 @@ class UpdateChecker(QObject):
             )
 
             max_attempts = 3
+
             retryable_http_codes = {
                 502,
                 503,
@@ -406,6 +407,7 @@ class UpdateChecker(QObject):
             target=worker,
             daemon=True,
         ).start()
+
 
 class UpdateManager(QObject):
 
@@ -616,7 +618,6 @@ class UpdateManager(QObject):
         installer_path,
     ):
 
-        import os
         import subprocess
 
         if self.download_message:
@@ -749,4 +750,29 @@ class UpdateManager(QObject):
         QTimer.singleShot(
             100,
             QApplication.quit,
+        )
+
+    # =====================================================
+    # DOWNLOAD FALLITO
+    # =====================================================
+
+    def on_download_failed(
+        self,
+        message,
+    ):
+
+        if self.download_message:
+
+            self.download_message.close()
+
+            self.download_message = None
+
+        QMessageBox.warning(
+            self.parent_window,
+            "Aggiornamento",
+            (
+                "Impossibile scaricare "
+                "l'aggiornamento.\n\n"
+                f"{message}"
+            ),
         )
