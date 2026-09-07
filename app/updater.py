@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTI
 # =========================================================
 
-CURRENT_VERSION = "1.8.7"
+CURRENT_VERSION = "1.8.8"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -667,89 +667,17 @@ class UpdateManager(QObject):
             )
             return
 
-        # IMPORTANTE:
-        # qui NON deve essere aperta una QMessageBox modale.
-        # L'helper esterno deve essere creato immediatamente;
-        # poi l'applicazione viene chiusa e PowerShell attende
-        # la terminazione del processo prima di avviare Inno Setup.
+        try:
 
-        if sys.platform != "win32":
+            if sys.platform == "win32":
+                os.startfile(
+                    str(installer)
+                )
 
-            try:
+            else:
                 subprocess.Popen(
                     [str(installer)]
                 )
-
-                QApplication.quit()
-
-            except Exception as error:
-                QMessageBox.critical(
-                    self.parent_window,
-                    "Aggiornamento",
-                    (
-                        "Impossibile avviare "
-                        "l'installer:\n\n"
-                        f"{error}"
-                    ),
-                )
-
-            return
-
-        try:
-            current_pid = os.getpid()
-
-            escaped_installer = (
-                str(installer)
-                .replace("'", "''")
-            )
-
-            powershell_script = (
-                f"$pidDaAttendere = {current_pid}; "
-                f"$installer = '{escaped_installer}'; "
-                "$timeout = 15; "
-                "$elapsed = 0; "
-
-                "while ("
-                "Get-Process -Id $pidDaAttendere "
-                "-ErrorAction SilentlyContinue"
-                ") { "
-
-                "if ($elapsed -ge $timeout) { "
-                "Stop-Process "
-                "-Id $pidDaAttendere "
-                "-Force "
-                "-ErrorAction SilentlyContinue; "
-                "break; "
-                "} "
-
-                "Start-Sleep -Seconds 1; "
-                "$elapsed++; "
-                "} "
-
-                "Start-Sleep -Seconds 1; "
-
-                "Start-Process "
-                "-FilePath $installer"
-            )
-
-            creation_flags = (
-                subprocess.CREATE_NEW_PROCESS_GROUP
-                | subprocess.DETACHED_PROCESS
-                | subprocess.CREATE_NO_WINDOW
-            )
-
-            subprocess.Popen(
-                [
-                    "powershell.exe",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    powershell_script,
-                ],
-                creationflags=creation_flags,
-                close_fds=True,
-            )
 
         except Exception as error:
 
@@ -757,8 +685,8 @@ class UpdateManager(QObject):
                 self.parent_window,
                 "Aggiornamento",
                 (
-                    "Impossibile preparare "
-                    "l'aggiornamento:\n\n"
+                    "Impossibile avviare "
+                    "l'installer:\n\n"
                     f"{error}"
                 ),
             )
