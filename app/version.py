@@ -1,5 +1,5 @@
 APP_NAME = "Gestione Turni"
-APP_VERSION = "1.7.6"
+APP_VERSION = "1.7.7"
 APP_AUTHOR = "Mattia Franco"
 APP_DESCRIPTION = "Sistema di gestione turni per studio medico"
 APP_COPYRIGHT = "© 2026 Mattia Franco"

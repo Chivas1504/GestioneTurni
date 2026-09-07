@@ -1,5 +1,5 @@
 #define MyAppName "Gestione Turni"
-#define MyAppVersion "1.7.6"
+#define MyAppVersion "1.7.7"
 #define MyAppPublisher "Mattia Franco"
 #define MyAppExeName "GestioneTurni.exe"
 #define MyAppIconName "gestione_turni.ico"
@@ -11,7 +11,7 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 
-VersionInfoVersion=1.7.6.0
+VersionInfoVersion=1.7.7.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=Installer di Gestione Turni
 VersionInfoProductName={#MyAppName}
@@ -21,7 +21,7 @@ DefaultDirName={autopf}\Gestione Turni
 DefaultGroupName=Gestione Turni
 
 OutputDir=Installer
-OutputBaseFilename=Setup_GestioneTurni_v1.7.6
+OutputBaseFilename=Setup_GestioneTurni_v1.7.7
 
 Compression=lzma2
 SolidCompression=yes

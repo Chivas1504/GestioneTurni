@@ -234,31 +234,25 @@ class UpdateChecker(QObject):
         release = release or self.release
 
         if not isinstance(release, dict):
-
             self.download_failed.emit(
-                "Informazioni aggiornamento "
-                "non disponibili."
+                "Informazioni aggiornamento non disponibili."
             )
-
             return
 
-        installer = release.get(
-            "installer"
-        )
+        installer = release.get("installer")
 
         if not installer:
-
             self.download_failed.emit(
                 "Installer non disponibile."
             )
-
             return
 
         url = installer["url"]
-
         filename = installer["name"]
 
         def worker():
+
+            import time
 
             destination = (
                 Path(tempfile.gettempdir())
@@ -269,86 +263,149 @@ class UpdateChecker(QObject):
                 ".exe.part"
             )
 
-            try:
+            max_attempts = 3
+            retryable_http_codes = {
+                502,
+                503,
+                504,
+            }
 
-                request = urllib.request.Request(
-                    url,
-                    headers={
-                        "User-Agent": USER_AGENT
-                    },
-                )
+            last_error = None
 
-                with urllib.request.urlopen(
-                    request,
-                    timeout=60,
-                ) as response:
-
-                    total = int(
-                        response.headers.get(
-                            "Content-Length",
-                            0,
-                        )
-                        or 0
-                    )
-
-                    downloaded = 0
-
-                    with partial.open("wb") as file:
-
-                        while True:
-
-                            chunk = response.read(
-                                256 * 1024
-                            )
-
-                            if not chunk:
-                                break
-
-                            file.write(chunk)
-
-                            downloaded += len(chunk)
-
-                            if total > 0:
-
-                                percent = int(
-                                    downloaded
-                                    * 100
-                                    / total
-                                )
-
-                                self.download_progress.emit(
-                                    min(percent, 100)
-                                )
-
-                if destination.exists():
-                    destination.unlink()
-
-                partial.replace(
-                    destination
-                )
-
-                self.installer_ready.emit(
-                    str(destination)
-                )
-
-            except Exception as error:
+            for attempt in range(
+                1,
+                max_attempts + 1,
+            ):
 
                 try:
-                    partial.unlink(
-                        missing_ok=True
+
+                    if partial.exists():
+                        partial.unlink()
+
+                    request = urllib.request.Request(
+                        url,
+                        headers={
+                            "User-Agent": USER_AGENT,
+                            "Accept": "application/octet-stream",
+                        },
                     )
-                except Exception:
-                    pass
+
+                    with urllib.request.urlopen(
+                        request,
+                        timeout=120,
+                    ) as response:
+
+                        total = int(
+                            response.headers.get(
+                                "Content-Length",
+                                0,
+                            )
+                            or 0
+                        )
+
+                        downloaded = 0
+
+                        with partial.open("wb") as file:
+
+                            while True:
+
+                                chunk = response.read(
+                                    256 * 1024
+                                )
+
+                                if not chunk:
+                                    break
+
+                                file.write(chunk)
+
+                                downloaded += len(chunk)
+
+                                if total > 0:
+
+                                    percent = int(
+                                        downloaded
+                                        * 100
+                                        / total
+                                    )
+
+                                    self.download_progress.emit(
+                                        min(percent, 100)
+                                    )
+
+                    if destination.exists():
+                        destination.unlink()
+
+                    partial.replace(destination)
+
+                    self.installer_ready.emit(
+                        str(destination)
+                    )
+
+                    return
+
+                except urllib.error.HTTPError as error:
+
+                    last_error = error
+
+                    if (
+                        error.code
+                        not in retryable_http_codes
+                    ):
+                        break
+
+                except (
+                    urllib.error.URLError,
+                    TimeoutError,
+                ) as error:
+
+                    last_error = error
+
+                except Exception as error:
+
+                    last_error = error
+                    break
+
+                if attempt < max_attempts:
+                    time.sleep(3 * attempt)
+
+            try:
+                partial.unlink(
+                    missing_ok=True
+                )
+            except Exception:
+                pass
+
+            if isinstance(
+                last_error,
+                urllib.error.HTTPError,
+            ):
 
                 self.download_failed.emit(
-                    str(error)
+                    (
+                        "GitHub non ha risposto "
+                        "correttamente dopo "
+                        f"{max_attempts} tentativi.\n\n"
+                        f"HTTP Error "
+                        f"{last_error.code}: "
+                        f"{last_error.reason}"
+                    )
+                )
+
+            else:
+
+                self.download_failed.emit(
+                    (
+                        "Impossibile scaricare "
+                        "l'aggiornamento dopo "
+                        f"{max_attempts} tentativi.\n\n"
+                        f"{last_error}"
+                    )
                 )
 
         threading.Thread(
             target=worker,
             daemon=True,
         ).start()
-
 
 class UpdateManager(QObject):
 
