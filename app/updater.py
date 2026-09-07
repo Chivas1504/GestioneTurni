@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTO AUTOMATICO
 # =========================================================
 
-CURRENT_VERSION = "1.8.3"
+CURRENT_VERSION = "1.8.4"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -252,16 +252,8 @@ class UpdateChecker(QObject):
 
         def worker():
 
+            import shutil
             import time
-
-            destination = (
-                Path(tempfile.gettempdir())
-                / filename
-            )
-
-            partial = destination.with_suffix(
-                ".exe.part"
-            )
 
             max_attempts = 3
 
@@ -278,10 +270,23 @@ class UpdateChecker(QObject):
                 max_attempts + 1,
             ):
 
+                update_dir = None
+
                 try:
 
-                    if partial.exists():
-                        partial.unlink()
+                    # Ogni tentativo usa una nuova cartella
+                    # temporanea, così non può interferire
+                    # un vecchio installer.
+                    update_dir = Path(
+                        tempfile.mkdtemp(
+                            prefix="GestioneTurni_Update_"
+                        )
+                    )
+
+                    destination = (
+                        update_dir
+                        / filename
+                    )
 
                     request = urllib.request.Request(
                         url,
@@ -306,7 +311,9 @@ class UpdateChecker(QObject):
 
                         downloaded = 0
 
-                        with partial.open("wb") as file:
+                        with destination.open(
+                            "wb"
+                        ) as file:
 
                             while True:
 
@@ -319,7 +326,9 @@ class UpdateChecker(QObject):
 
                                 file.write(chunk)
 
-                                downloaded += len(chunk)
+                                downloaded += len(
+                                    chunk
+                                )
 
                                 if total > 0:
 
@@ -330,14 +339,57 @@ class UpdateChecker(QObject):
                                     )
 
                                     self.download_progress.emit(
-                                        min(percent, 100)
+                                        min(
+                                            percent,
+                                            99,
+                                        )
                                     )
-                                    if downloaded >= total:
-                                        break
-                    if destination.exists():
-                        destination.unlink()
 
-                    partial.replace(destination)
+                            # Forziamo la scrittura reale
+                            # del file prima di dichiarare
+                            # concluso il download.
+                            file.flush()
+                            os.fsync(
+                                file.fileno()
+                            )
+
+                    # Se GitHub fornisce la dimensione
+                    # prevista, controlliamo che il file
+                    # sia completo.
+                    if (
+                        total > 0
+                        and downloaded < total
+                    ):
+
+                        raise IOError(
+                            "Download incompleto: "
+                            f"{downloaded} byte "
+                            f"ricevuti su "
+                            f"{total} previsti."
+                        )
+
+                    if not destination.exists():
+
+                        raise FileNotFoundError(
+                            "Installer scaricato "
+                            "non trovato."
+                        )
+
+                    if (
+                        destination.stat().st_size
+                        <= 0
+                    ):
+
+                        raise IOError(
+                            "L'installer scaricato "
+                            "è vuoto."
+                        )
+
+                    # Mostriamo 100% soltanto ORA,
+                    # quando il file è realmente pronto.
+                    self.download_progress.emit(
+                        100
+                    )
 
                     self.installer_ready.emit(
                         str(destination)
@@ -348,6 +400,13 @@ class UpdateChecker(QObject):
                 except urllib.error.HTTPError as error:
 
                     last_error = error
+
+                    if update_dir is not None:
+
+                        shutil.rmtree(
+                            update_dir,
+                            ignore_errors=True,
+                        )
 
                     if (
                         error.code
@@ -362,20 +421,31 @@ class UpdateChecker(QObject):
 
                     last_error = error
 
+                    if update_dir is not None:
+
+                        shutil.rmtree(
+                            update_dir,
+                            ignore_errors=True,
+                        )
+
                 except Exception as error:
 
                     last_error = error
+
+                    if update_dir is not None:
+
+                        shutil.rmtree(
+                            update_dir,
+                            ignore_errors=True,
+                        )
+
                     break
 
                 if attempt < max_attempts:
-                    time.sleep(3 * attempt)
 
-            try:
-                partial.unlink(
-                    missing_ok=True
-                )
-            except Exception:
-                pass
+                    time.sleep(
+                        3 * attempt
+                    )
 
             if isinstance(
                 last_error,
@@ -408,7 +478,6 @@ class UpdateChecker(QObject):
             target=worker,
             daemon=True,
         ).start()
-
 
 class UpdateManager(QObject):
 
