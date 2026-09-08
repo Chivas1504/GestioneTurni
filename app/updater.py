@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTI
 # =========================================================
 
-CURRENT_VERSION = "1.8.9"
+CURRENT_VERSION = "1.8.10"
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -86,6 +86,151 @@ class UpdateChecker(QObject):
     # CONTROLLO RELEASE
     # =====================================================
 
+    def _fetch_latest_release_with_powershell(self):
+        """
+        Fallback Windows per il solo controllo della release.
+
+        Viene usato esclusivamente quando urllib non riesce a raggiungere
+        GitHub. Non modifica il sistema di download/installazione.
+        """
+        if sys.platform != "win32":
+            raise RuntimeError(
+                "Fallback PowerShell disponibile solo su Windows."
+            )
+
+        powershell_script = (
+            "[Console]::OutputEncoding = "
+            "[System.Text.Encoding]::UTF8; "
+            "$ProgressPreference = 'SilentlyContinue'; "
+            "$headers = @{ "
+            f"'User-Agent' = '{USER_AGENT}'; "
+            "'Accept' = 'application/vnd.github+json' "
+            "}; "
+            f"$result = Invoke-RestMethod -Uri '{LATEST_RELEASE_API}' "
+            "-Headers $headers -Method Get -TimeoutSec 15; "
+            "$result | ConvertTo-Json -Depth 20 -Compress"
+        )
+
+        creation_flags = getattr(
+            subprocess,
+            "CREATE_NO_WINDOW",
+            0,
+        )
+
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                powershell_script,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=25,
+            creationflags=creation_flags,
+        )
+
+        if result.returncode != 0:
+            error_text = (
+                result.stderr.strip()
+                or result.stdout.strip()
+                or f"PowerShell terminato con codice {result.returncode}."
+            )
+
+            raise RuntimeError(error_text)
+
+        output = result.stdout.strip().lstrip("\ufeff")
+
+        if not output:
+            raise RuntimeError(
+                "PowerShell non ha restituito dati da GitHub."
+            )
+
+        return json.loads(output)
+
+    def _process_release_data(self, data, show_no_update=False):
+        tag = str(
+            data.get("tag_name", "")
+        ).strip()
+
+        if not tag:
+            raise ValueError(
+                "La release GitHub non contiene "
+                "un numero di versione valido."
+            )
+
+        if not is_newer_version(
+            tag,
+            CURRENT_VERSION,
+        ):
+            if show_no_update:
+                self.no_update.emit()
+
+            return
+
+        installer = None
+
+        for asset in data.get("assets", []):
+
+            if not isinstance(asset, dict):
+                continue
+
+            name = str(
+                asset.get("name", "")
+            )
+
+            download_url = str(
+                asset.get(
+                    "browser_download_url",
+                    "",
+                )
+            )
+
+            if (
+                INSTALLER_PATTERN.match(name)
+                and download_url
+            ):
+                installer = {
+                    "name": name,
+                    "url": download_url,
+                    "size": int(
+                        asset.get("size", 0) or 0
+                    ),
+                }
+
+                break
+
+        if installer is None:
+            raise ValueError(
+                f"È disponibile {tag}, ma nella "
+                f"GitHub Release non è presente "
+                f"l'installer "
+                f"Setup_GestioneTurni_vX.X.X.exe."
+            )
+
+        release = {
+            "version": tag.lstrip("vV"),
+            "tag": tag,
+            "name": str(
+                data.get("name") or tag
+            ),
+            "notes": str(
+                data.get("body") or ""
+            ).strip(),
+            "installer": installer,
+        }
+
+        self.release = release
+
+        self.update_available.emit(
+            release
+        )
+
     def check_async(self, show_no_update=False):
 
         def worker():
@@ -99,89 +244,42 @@ class UpdateChecker(QObject):
                     },
                 )
 
-                with urllib.request.urlopen(
-                    request,
-                    timeout=10,
-                ) as response:
-                    data = json.loads(
-                        response.read().decode("utf-8")
-                    )
-
-                tag = str(
-                    data.get("tag_name", "")
-                ).strip()
-
-                if not tag:
-                    raise ValueError(
-                        "La release GitHub non contiene "
-                        "un numero di versione valido."
-                    )
-
-                if not is_newer_version(
-                    tag,
-                    CURRENT_VERSION,
-                ):
-                    if show_no_update:
-                        self.no_update.emit()
-
-                    return
-
-                installer = None
-
-                for asset in data.get("assets", []):
-
-                    if not isinstance(asset, dict):
-                        continue
-
-                    name = str(
-                        asset.get("name", "")
-                    )
-
-                    download_url = str(
-                        asset.get(
-                            "browser_download_url",
-                            "",
+                try:
+                    with urllib.request.urlopen(
+                        request,
+                        timeout=10,
+                    ) as response:
+                        data = json.loads(
+                            response.read().decode("utf-8")
                         )
-                    )
 
-                    if (
-                        INSTALLER_PATTERN.match(name)
-                        and download_url
-                    ):
-                        installer = {
-                            "name": name,
-                            "url": download_url,
-                            "size": int(
-                                asset.get("size", 0) or 0
-                            ),
-                        }
+                except urllib.error.URLError as urllib_error:
+                    # Se Python/urllib non riesce a raggiungere GitHub,
+                    # su Windows proviamo una seconda strada usando
+                    # lo stack di rete del sistema tramite PowerShell.
+                    if sys.platform != "win32":
+                        raise urllib_error
 
-                        break
+                    try:
+                        data = self._fetch_latest_release_with_powershell()
 
-                if installer is None:
-                    raise ValueError(
-                        f"È disponibile {tag}, ma nella "
-                        f"GitHub Release non è presente "
-                        f"l'installer "
-                        f"Setup_GestioneTurni_vX.X.X.exe."
-                    )
+                    except Exception as powershell_error:
+                        urllib_reason = getattr(
+                            urllib_error,
+                            "reason",
+                            urllib_error,
+                        )
 
-                release = {
-                    "version": tag.lstrip("vV"),
-                    "tag": tag,
-                    "name": str(
-                        data.get("name") or tag
-                    ),
-                    "notes": str(
-                        data.get("body") or ""
-                    ).strip(),
-                    "installer": installer,
-                }
+                        raise RuntimeError(
+                            "Impossibile contattare il server "
+                            "degli aggiornamenti.\n\n"
+                            f"Metodo principale: {urllib_reason}\n"
+                            f"Metodo alternativo: {powershell_error}"
+                        ) from powershell_error
 
-                self.release = release
-
-                self.update_available.emit(
-                    release
+                self._process_release_data(
+                    data,
+                    show_no_update=show_no_update,
                 )
 
             except urllib.error.HTTPError as error:
@@ -198,11 +296,17 @@ class UpdateChecker(QObject):
                         f"{error.code}."
                     )
 
-            except urllib.error.URLError:
+            except urllib.error.URLError as error:
+                reason = getattr(
+                    error,
+                    "reason",
+                    error,
+                )
 
                 self.check_failed.emit(
-                    "Connessione Internet "
-                    "non disponibile."
+                    "Impossibile contattare il server "
+                    "degli aggiornamenti.\n\n"
+                    f"Dettaglio: {reason}"
                 )
 
             except Exception as error:
