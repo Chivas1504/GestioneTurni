@@ -5,6 +5,7 @@ from typing import Any, Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -84,8 +85,11 @@ class SettingsDialog(QDialog):
 
         doctor_form = QFormLayout()
         doctor_form.setVerticalSpacing(14)
+        doctor_name_label = QLabel("Nome visualizzato:")
+        doctor_name_label.setStyleSheet("color: #213d53;")
+
         doctor_form.addRow(
-            "Nome visualizzato:",
+            doctor_name_label,
             self.doctor_name_input,
         )
 
@@ -96,10 +100,42 @@ class SettingsDialog(QDialog):
         self.queue_prefix_input.setText(
             str(current_config.get("queue_prefix", "")).upper()
         )
+        queue_prefix_label = QLabel("Lettera della coda:")
+        queue_prefix_label.setStyleSheet("color: #213d53;")
+
         doctor_form.addRow(
-            "Lettera della coda:",
+            queue_prefix_label,
             self.queue_prefix_input,
         )
+
+        self.queue_mode_combo = QComboBox()
+        self.queue_mode_combo.setMinimumHeight(46)
+        self.queue_mode_combo.addItem("Numero", "number")
+        self.queue_mode_combo.addItem("Cognome", "surname")
+        current_queue_mode = str(
+            current_config.get("queue_mode", "number")
+        ).strip().lower()
+        mode_index = self.queue_mode_combo.findData(
+            "surname" if current_queue_mode == "surname" else "number"
+        )
+        self.queue_mode_combo.setCurrentIndex(max(0, mode_index))
+        queue_mode_label = QLabel("Modalità chiamata:")
+        queue_mode_label.setStyleSheet("color: #213d53;")
+
+        doctor_form.addRow(
+            queue_mode_label,
+            self.queue_mode_combo,
+        )
+
+        def update_prefix_enabled() -> None:
+            self.queue_prefix_input.setEnabled(
+                self.queue_mode_combo.currentData() == "number"
+            )
+
+        self.queue_mode_combo.currentIndexChanged.connect(
+            update_prefix_enabled
+        )
+        update_prefix_enabled()
 
         section_display = QLabel("DISPLAY")
         section_display.setObjectName("settingsSection")
@@ -342,7 +378,7 @@ class SettingsDialog(QDialog):
                 letter-spacing: 2px;
             }
 
-            QLineEdit, QSpinBox {
+            QLineEdit, QSpinBox, QComboBox {
                 background-color: white;
                 color: #213d53;
                 border: 1px solid #cbd8e3;
@@ -351,7 +387,14 @@ class SettingsDialog(QDialog):
                 font-size: 16px;
             }
 
-            QLineEdit:focus, QSpinBox:focus {
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: #213d53;
+                selection-background-color: #dce8f1;
+                selection-color: #213d53;
+            }
+
+            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
                 border: 2px solid #218b5d;
             }
 
@@ -512,9 +555,16 @@ class SettingsDialog(QDialog):
             self.queue_prefix_input.setFocus()
             return
 
+        queue_mode = str(
+            self.queue_mode_combo.currentData() or "number"
+        ).strip().lower()
+        if queue_mode not in {"number", "surname"}:
+            queue_mode = "number"
+
         self.saved_settings = {
             "doctor_name": doctor_name,
             "queue_prefix": prefix,
+            "queue_mode": queue_mode,
             "display_fullscreen": (
                 self.fullscreen_checkbox.isChecked()
             ),

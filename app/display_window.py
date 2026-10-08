@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QKeyEvent
+from PySide6.QtGui import QColor, QFont, QKeyEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -28,12 +28,16 @@ class DoctorDisplayCard(QFrame):
         doctor_name: str,
         number: int,
         queue_prefix: str = "",
+        queue_mode: str = "number",
+        current_surname: str = "",
     ) -> None:
         super().__init__()
 
         self.doctor_id = doctor_id
         self._number = number
         self._queue_prefix = self._clean_prefix(queue_prefix)
+        self._queue_mode = self._clean_queue_mode(queue_mode)
+        self._current_surname = self._clean_surname(current_surname)
 
         self.setObjectName("doctorCard")
 
@@ -47,17 +51,18 @@ class DoctorDisplayCard(QFrame):
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
 
-        self.called_label = QLabel("NUMERO ATTUALMENTE CHIAMATO")
+        self.called_label = QLabel(self._called_text())
         self.called_label.setObjectName("displayCalledLabel")
         self.called_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.number_label = QLabel(self._formatted_number())
+        self.number_label = QLabel(self._formatted_value())
         self.number_label.setObjectName("displayDoctorNumber")
         self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.number_label.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
+        self._number_font = QFont(self.number_label.font())
 
         self.status_label = QLabel("Recarsi presso lo studio indicato")
         self.status_label.setObjectName("displayDoctorStatus")
@@ -75,6 +80,7 @@ class DoctorDisplayCard(QFrame):
         card_layout.addStretch()
         card_layout.addWidget(self.status_label)
 
+        self._apply_value_font()
         self._apply_shadow()
 
     def update_doctor(
@@ -82,19 +88,59 @@ class DoctorDisplayCard(QFrame):
         doctor_name: str,
         number: int,
         queue_prefix: str = "",
+        queue_mode: str = "number",
+        current_surname: str = "",
     ) -> None:
         self.name_label.setText(doctor_name)
-        clean_prefix = self._clean_prefix(queue_prefix)
 
-        if number == self._number and clean_prefix == self._queue_prefix:
+        clean_prefix = self._clean_prefix(queue_prefix)
+        clean_mode = self._clean_queue_mode(queue_mode)
+        clean_surname = self._clean_surname(current_surname)
+
+        if (
+            number == self._number
+            and clean_prefix == self._queue_prefix
+            and clean_mode == self._queue_mode
+            and clean_surname == self._current_surname
+        ):
             return
 
         self._number = number
         self._queue_prefix = clean_prefix
-        self.number_label.setText(self._formatted_number())
+        self._queue_mode = clean_mode
+        self._current_surname = clean_surname
 
-    def _formatted_number(self) -> str:
+        self.called_label.setText(self._called_text())
+        self.number_label.setText(self._formatted_value())
+        self._apply_value_font()
+
+    def _apply_value_font(self) -> None:
+        font = QFont(self._number_font)
+
+        if self._queue_mode == "surname":
+            font.setPixelSize(110)
+        else:
+            font.setPixelSize(250)
+
+        self.number_label.setFont(font)
+
+    def _called_text(self) -> str:
+        if self._queue_mode == "surname":
+            return "PAZIENTE CHIAMATO"
+        return "NUMERO ATTUALMENTE CHIAMATO"
+
+    def _formatted_value(self) -> str:
+        if self._queue_mode == "surname":
+            return self._current_surname.upper() if self._current_surname else "—"
         return f"{self._queue_prefix}{self._number}"
+
+    @staticmethod
+    def _clean_queue_mode(value: object) -> str:
+        return "surname" if str(value or "").strip().lower() == "surname" else "number"
+
+    @staticmethod
+    def _clean_surname(value: object) -> str:
+        return " ".join(str(value or "").strip().split())[:80]
 
     @staticmethod
     def _clean_prefix(value: object) -> str:
@@ -207,7 +253,7 @@ class DisplayWindow(QMainWindow):
 
         self.footer_label = QLabel(
             "Attendere il proprio turno e controllare "
-            "il numero sullo schermo"
+            "la chiamata sullo schermo"
         )
         self.footer_label.setObjectName("displayFooter")
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -377,6 +423,18 @@ class DisplayWindow(QMainWindow):
                     "queue_prefix": str(
                         doctor_state.get("queue_prefix", "")
                     ).strip().upper()[:1],
+                    "queue_mode": (
+                        "surname"
+                        if str(
+                            doctor_state.get("queue_mode", "number")
+                        ).strip().lower() == "surname"
+                        else "number"
+                    ),
+                    "current_surname": " ".join(
+                        str(
+                            doctor_state.get("current_surname", "")
+                        ).strip().split()
+                    )[:80],
                     "number": self._safe_number(
                         doctor_state.get("number", 0)
                     ),
@@ -419,6 +477,8 @@ class DisplayWindow(QMainWindow):
             doctor_name = str(doctor["doctor_name"])
             number = self._safe_number(doctor["number"])
             queue_prefix = str(doctor.get("queue_prefix", ""))
+            queue_mode = str(doctor.get("queue_mode", "number"))
+            current_surname = str(doctor.get("current_surname", ""))
 
             existing_card = self.doctor_cards.get(doctor_id)
 
@@ -428,6 +488,8 @@ class DisplayWindow(QMainWindow):
                     doctor_name=doctor_name,
                     number=number,
                     queue_prefix=queue_prefix,
+                    queue_mode=queue_mode,
+                    current_surname=current_surname,
                 )
                 self.doctor_cards[doctor_id] = card
                 self.cards_layout.addWidget(card, stretch=1)
@@ -436,6 +498,8 @@ class DisplayWindow(QMainWindow):
                     doctor_name=doctor_name,
                     number=number,
                     queue_prefix=queue_prefix,
+                    queue_mode=queue_mode,
+                    current_surname=current_surname,
                 )
 
     def toggle_fullscreen(self) -> None:

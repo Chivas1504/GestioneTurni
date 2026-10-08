@@ -63,6 +63,13 @@ class AppController(QObject):
             self.config.get("queue_prefix", "")
         )
 
+        self.queue_mode = self._clean_queue_mode(
+            self.config.get("queue_mode", "number")
+        )
+        self.current_surname = self._clean_surname(
+            self.config.get("current_surname", "")
+        )
+
         self.queue_active = bool(
             self.config.get(
                 "queue_active",
@@ -99,6 +106,8 @@ class AppController(QObject):
             local_doctor_id=self.doctor_id,
             local_doctor_name=self.doctor_name,
             local_queue_prefix=self.queue_prefix,
+            local_queue_mode=self.queue_mode,
+            local_current_surname=self.current_surname,
             local_number=current_number,
             local_queue_active=self.queue_active,
             local_patient_started_at=self._patient_started_at,
@@ -203,6 +212,7 @@ class AppController(QObject):
             "patient_time_warning_enabled",
             "patient_time_warning_minutes",
             "patient_time_warning_sound_enabled",
+            "queue_mode",
             "password_salt",
             "password_hash",
             "password_iterations",
@@ -332,9 +342,18 @@ class AppController(QObject):
         new_prefix = self._clean_queue_prefix(
             settings.get("queue_prefix", self.queue_prefix)
         )
+        new_queue_mode = self._clean_queue_mode(
+            settings.get("queue_mode", self.queue_mode)
+        )
 
+        mode_changed = new_queue_mode != self.queue_mode
         self.config.update(settings)
         self.config["queue_prefix"] = new_prefix
+        self.config["queue_mode"] = new_queue_mode
+        if mode_changed:
+            self.current_surname = ""
+            self.config["current_surname"] = ""
+            self._clear_patient_timer_state(save=False)
         save_config(self.config)
 
         account_record = self.account_store.update_account(
@@ -364,6 +383,17 @@ class AppController(QObject):
             self.queue_prefix = new_prefix
             self.shared_state.update_local(
                 queue_prefix=self.queue_prefix
+            )
+
+        if mode_changed:
+            self.queue_mode = new_queue_mode
+            self.shared_state.update_local(
+                queue_mode=self.queue_mode,
+                current_surname="",
+            )
+            self._sync_patient_timer_state()
+            self.patient_timer_changed.emit(
+                self.get_current_patient_timer()
             )
 
         self.settings_changed.emit(
@@ -536,6 +566,27 @@ class AppController(QObject):
             )
         )
 
+    def set_surname(self, surname: str) -> None:
+        clean_surname = self._clean_surname(surname)
+        if clean_surname == self.current_surname:
+            return
+
+        LOGGER.info(
+            "Aggiornamento cognome chiamato %s",
+            self.doctor_id,
+        )
+
+        self.current_surname = clean_surname
+        self.config["current_surname"] = self.current_surname
+        save_config(self.config)
+
+        self.shared_state.update_local(
+            current_surname=self.current_surname
+        )
+
+    def get_current_surname(self) -> str:
+        return self.current_surname
+
     def set_queue_active(
         self,
         queue_active: bool,
@@ -556,6 +607,11 @@ class AppController(QObject):
         current_number = (
             self.get_local_number()
         )
+
+        if self.queue_mode == "surname" and self.current_surname:
+            self.current_surname = ""
+            self.config["current_surname"] = ""
+            self.shared_state.update_local(current_surname="")
 
         if new_queue_active:
             start_daily_queue(
@@ -750,12 +806,20 @@ class AppController(QObject):
             self.queue_prefix = self._clean_queue_prefix(
                 local_state.get("queue_prefix", self.queue_prefix)
             )
+            self.queue_mode = self._clean_queue_mode(
+                local_state.get("queue_mode", self.queue_mode)
+            )
+            self.current_surname = self._clean_surname(
+                local_state.get("current_surname", self.current_surname)
+            )
             turns = load_turns()
             turns[self.doctor_id] = self._safe_number(local_state.get("number", 0))
             save_turns(turns)
             self.config["queue_active"] = self.queue_active
             self.config["doctor_name"] = self.doctor_name
             self.config["queue_prefix"] = self.queue_prefix
+            self.config["queue_mode"] = self.queue_mode
+            self.config["current_surname"] = self.current_surname
 
             remote_started_at = self._safe_timestamp(local_state.get("patient_started_at"))
             remote_number = self._safe_optional_number(local_state.get("patient_number"))
@@ -792,6 +856,14 @@ class AppController(QObject):
             return ""
         first = text[0]
         return first if "A" <= first <= "Z" else ""
+
+    @staticmethod
+    def _clean_queue_mode(value: object) -> str:
+        return "surname" if str(value or "").strip().lower() == "surname" else "number"
+
+    @staticmethod
+    def _clean_surname(value: object) -> str:
+        return " ".join(str(value or "").strip().split())[:60]
 
     @staticmethod
     def _safe_timestamp(value: object) -> float | None:

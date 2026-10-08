@@ -67,6 +67,14 @@ class MainWindow(QMainWindow):
                 0,
             )
         )
+        self.queue_mode = (
+            "surname"
+            if str(local_state.get("queue_mode", "number")).strip().lower() == "surname"
+            else "number"
+        )
+        self.current_surname = " ".join(
+            str(local_state.get("current_surname", "")).strip().split()
+        )[:60]
 
         self.current_network_role = (
             "Inizializzazione"
@@ -159,10 +167,15 @@ class MainWindow(QMainWindow):
             self.doctor_name,
             current_number,
             queue_prefix=self.controller.queue_prefix,
+            queue_mode=self.queue_mode,
+            current_surname=self.current_surname,
         )
 
         self.doctor_card.number_changed.connect(
             self.controller.set_number
+        )
+        self.doctor_card.surname_changed.connect(
+            self.controller.set_surname
         )
 
     def _build_patient_timer(self) -> None:
@@ -712,6 +725,15 @@ class MainWindow(QMainWindow):
             )
         ).strip().upper()
 
+        queue_mode = (
+            "surname"
+            if str(local_state.get("queue_mode", self.queue_mode)).strip().lower() == "surname"
+            else "number"
+        )
+        current_surname = " ".join(
+            str(local_state.get("current_surname", self.current_surname)).strip().split()
+        )[:60]
+
         queue_active = bool(
             local_state.get(
                 "queue_active",
@@ -728,7 +750,11 @@ class MainWindow(QMainWindow):
                 doctor_name
             )
 
+        self.queue_mode = queue_mode
+        self.current_surname = current_surname
         self.doctor_card.set_queue_prefix(queue_prefix)
+        self.doctor_card.set_queue_mode(queue_mode)
+        self.doctor_card.set_surname(current_surname)
 
         if number != self.doctor_card.number:
             self.doctor_card.set_number(

@@ -12,7 +12,7 @@ class SharedState(QObject):
     state_changed = Signal(object)
     local_state_changed = Signal(object)
 
-    def __init__(self, local_doctor_id: str, local_doctor_name: str, local_queue_prefix: str = "", local_number: int = 0, local_queue_active: bool = False, local_patient_started_at: float | None = None, local_patient_number: int | None = None, local_patient_prefix: str = "", local_patient_paused_at: float | None = None) -> None:
+    def __init__(self, local_doctor_id: str, local_doctor_name: str, local_queue_prefix: str = "", local_queue_mode: str = "number", local_current_surname: str = "", local_number: int = 0, local_queue_active: bool = False, local_patient_started_at: float | None = None, local_patient_number: int | None = None, local_patient_prefix: str = "", local_patient_paused_at: float | None = None) -> None:
         super().__init__()
         validate_doctor_id(local_doctor_id)
         self.local_doctor_id = local_doctor_id
@@ -22,6 +22,8 @@ class SharedState(QObject):
             "doctor_id": local_doctor_id,
             "doctor_name": local_doctor_name,
             "queue_prefix": local_queue_prefix,
+            "queue_mode": local_queue_mode,
+            "current_surname": local_current_surname,
             "number": local_number,
             "queue_active": local_queue_active,
             "patient_started_at": local_patient_started_at,
@@ -40,7 +42,8 @@ class SharedState(QObject):
         validate_doctor_id(doctor_id)
         with self._lock:
             return deepcopy(self._state.get(doctor_id, {
-                "doctor_id": doctor_id, "doctor_name": "", "queue_prefix": "", "number": 0,
+                "doctor_id": doctor_id, "doctor_name": "", "queue_prefix": "",
+                "queue_mode": "number", "current_surname": "", "number": 0,
                 "queue_active": False, "patient_started_at": None, "patient_number": None,
                 "patient_prefix": "", "patient_paused_at": None,
                 "online": False, "updated_at": 0.0,
@@ -49,7 +52,7 @@ class SharedState(QObject):
     def get_local_doctor(self) -> dict[str, Any]:
         return self.get_doctor(self.local_doctor_id)
 
-    def update_local(self, *, doctor_name: str | None = None, queue_prefix: str | None = None, number: int | None = None, queue_active: bool | None = None, online: bool | None = None) -> None:
+    def update_local(self, *, doctor_name: str | None = None, queue_prefix: str | None = None, queue_mode: str | None = None, current_surname: str | None = None, number: int | None = None, queue_active: bool | None = None, online: bool | None = None) -> None:
         with self._lock:
             current = self.get_doctor(self.local_doctor_id)
             if doctor_name is not None:
@@ -59,6 +62,10 @@ class SharedState(QObject):
                 current["doctor_name"] = clean
             if queue_prefix is not None:
                 current["queue_prefix"] = queue_prefix
+            if queue_mode is not None:
+                current["queue_mode"] = queue_mode
+            if current_surname is not None:
+                current["current_surname"] = current_surname
             if number is not None:
                 current["number"] = max(0, int(number))
             if queue_active is not None:

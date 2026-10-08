@@ -378,6 +378,7 @@ DISPLAY_HTML = r"""<!doctype html>
         .doctor-name { width: 100%; font-size: 56px; font-size: clamp(32px, 4vw, 70px); font-weight: 900; text-align: center; overflow-wrap: anywhere; }
         .called { width: 100%; color: #6c8192; font-size: 22px; font-size: clamp(15px, 1.4vw, 25px); font-weight: 800; letter-spacing: .18em; margin-top: 3vh; text-align: center; }
         .number { display: block; width: 100%; color: #145f91; font-size: 260px; font-size: clamp(170px, 25vh, 360px); line-height: .95; font-weight: 900; font-variant-numeric: tabular-nums; text-align: center; margin-left: 0; margin-right: 0; }
+        .number.surname-value { font-size: 96px; font-size: clamp(48px, 9vw, 150px); line-height: 1.05; overflow-wrap: anywhere; }
         .status { width: 100%; color: #60758a; font-size: 26px; font-size: clamp(18px, 1.7vw, 30px); font-weight: 600; text-align: center; }
         .empty, .connection {
             flex: 1; margin: 2vh 10vw; border: 1px solid rgba(255,255,255,.18); border-radius: 28px;
@@ -410,6 +411,7 @@ DISPLAY_HTML = r"""<!doctype html>
             .screen { padding-left: 2vw; padding-right: 2vw; }
             .doctor-name { font-size: 30px; }
             .number { font-size: 150px; }
+            .number.surname-value { font-size: 72px; }
         }
 
         /* Layout critico Smart TV: vera tabella HTML, non CSS grid/flex/float. */
@@ -673,9 +675,19 @@ DISPLAY_HTML = r"""<!doctype html>
             .replace(/'/g, "&#039;");
     }
 
-    function displayNumber(doctor) {
-        var prefix = trimText(doctor.queue_prefix || "").toUpperCase().slice(0, 1);
-        var number = parseInt(doctor.number, 10);
+    function displayValue(doctor) {
+        var mode = trimText(doctor.queue_mode || "number").toLowerCase();
+        var surname;
+        var prefix;
+        var number;
+
+        if (mode === "surname") {
+            surname = trimText(doctor.current_surname || "");
+            return surname ? surname.toUpperCase() : "—";
+        }
+
+        prefix = trimText(doctor.queue_prefix || "").toUpperCase().slice(0, 1);
+        number = parseInt(doctor.number, 10);
 
         if (isNaN(number) || number < 0) {
             number = 0;
@@ -685,10 +697,14 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     function doctorCard(doctor) {
+        var mode = trimText(doctor.queue_mode || "number").toLowerCase();
+        var label = mode === "surname" ? "PAZIENTE CHIAMATO" : "NUMERO CHIAMATO";
+        var valueClass = mode === "surname" ? " surname-value" : "";
+
         return "<div class=\"card " + escapeHtml(doctor.doctor_id) + "\" style=\"width:100%;height:100%;text-align:center;float:none;margin:0;\">" +
             "<div class=\"doctor-name\" style=\"width:100%;text-align:center;\">" + escapeHtml(doctor.doctor_name || "Medico") + "</div>" +
-            "<div class=\"called\" style=\"width:100%;text-align:center;\">NUMERO CHIAMATO</div>" +
-            "<div class=\"number legacy-number\" align=\"center\" style=\"display:block;width:100%;text-align:center;margin-left:auto;margin-right:auto;\">" + escapeHtml(displayNumber(doctor)) + "</div>" +
+            "<div class=\"called\" style=\"width:100%;text-align:center;\">" + escapeHtml(label) + "</div>" +
+            "<div class=\"number legacy-number" + valueClass + "\" align=\"center\" style=\"display:block;width:100%;text-align:center;margin-left:auto;margin-right:auto;\">" + escapeHtml(displayValue(doctor)) + "</div>" +
             "<div class=\"status\" style=\"width:100%;text-align:center;\">Coda attiva</div>" +
             "</div>";
     }
@@ -732,7 +748,7 @@ DISPLAY_HTML = r"""<!doctype html>
         for (index = 0; index < activeDoctors.length; index += 1) {
             doctor = activeDoctors[index];
             doctorId = trimText(doctor.doctor_id || ("doctor" + index));
-            turnValue = displayNumber(doctor);
+            turnValue = displayValue(doctor);
             nextTurns[doctorId] = turnValue;
 
             if (previousTurnsReady &&

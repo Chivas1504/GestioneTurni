@@ -102,6 +102,8 @@ def normalise_doctor_state(doctor_state: dict[str, Any], *, expected_doctor_id: 
     patient_paused_at = _normalise_optional_timestamp(doctor_state.get("patient_paused_at"))
     patient_number = _normalise_optional_number(doctor_state.get("patient_number"))
     patient_prefix = clean_queue_prefix(doctor_state.get("patient_prefix", ""))
+    queue_mode = clean_queue_mode(doctor_state.get("queue_mode", "number"))
+    current_surname = clean_surname(doctor_state.get("current_surname", ""))
 
     # Un timer senza paziente/avvio non è valido. In quel caso puliamo anche
     # l'eventuale stato di pausa ricevuto dalla rete.
@@ -115,6 +117,8 @@ def normalise_doctor_state(doctor_state: dict[str, Any], *, expected_doctor_id: 
         "doctor_id": doctor_id,
         "doctor_name": str(doctor_state.get("doctor_name", "")).strip(),
         "queue_prefix": clean_queue_prefix(doctor_state.get("queue_prefix", "")),
+        "queue_mode": queue_mode,
+        "current_surname": current_surname,
         "number": number,
         "queue_active": bool(doctor_state.get("queue_active", False)),
         "patient_started_at": patient_started_at,
@@ -130,6 +134,7 @@ def create_empty_doctor_state(doctor_id: str) -> dict[str, Any]:
     validate_doctor_id(doctor_id)
     return {
         "doctor_id": doctor_id, "doctor_name": "", "queue_prefix": "",
+        "queue_mode": "number", "current_surname": "",
         "number": 0, "queue_active": False, "patient_started_at": None,
         "patient_number": None, "patient_prefix": "", "patient_paused_at": None,
         "online": False, "updated_at": 0.0,
@@ -160,3 +165,12 @@ def clean_queue_prefix(value: object) -> str:
     if not text:
         return ""
     return text[0] if "A" <= text[0] <= "Z" else ""
+
+def clean_queue_mode(value: object) -> str:
+    text = str(value or "number").strip().lower()
+    return "surname" if text == "surname" else "number"
+
+
+def clean_surname(value: object) -> str:
+    return " ".join(str(value or "").strip().split())[:60]
+

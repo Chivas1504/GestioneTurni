@@ -11,6 +11,8 @@ DEFAULT_CONFIG = {
     "doctor_id": "",
     "doctor_name": "",
     "queue_prefix": "",
+    "queue_mode": "number",
+    "current_surname": "",
     "queue_active": False,
     "display_fullscreen": False,
     "display_show_clock": True,
@@ -92,6 +94,12 @@ def load_config() -> dict[str, Any]:
             ).strip(),
             "queue_prefix": _clean_queue_prefix(
                 data.get("queue_prefix", "")
+            ),
+            "queue_mode": _clean_queue_mode(
+                data.get("queue_mode", "number")
+            ),
+            "current_surname": _clean_surname(
+                data.get("current_surname", "")
             ),
             "queue_active": bool(
                 data.get("queue_active", False)
@@ -177,6 +185,12 @@ def save_config(
         "queue_prefix": _clean_queue_prefix(
             config.get("queue_prefix", "")
         ),
+        "queue_mode": _clean_queue_mode(
+            config.get("queue_mode", "number")
+        ),
+        "current_surname": _clean_surname(
+            config.get("current_surname", "")
+        ),
         "queue_active": bool(
             config.get("queue_active", False)
         ),
@@ -242,6 +256,15 @@ def _clean_queue_prefix(value: object) -> str:
         return ""
     first = text[0]
     return first if "A" <= first <= "Z" else ""
+
+
+def _clean_queue_mode(value: object) -> str:
+    text = str(value or "number").strip().lower()
+    return "surname" if text == "surname" else "number"
+
+
+def _clean_surname(value: object) -> str:
+    return " ".join(str(value or "").strip().split())[:60]
 
 
 def _safe_warning_minutes(value: object) -> int:

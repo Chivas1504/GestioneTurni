@@ -17,104 +17,78 @@ from PySide6.QtWidgets import (
 class StudioCard(QFrame):
 
     number_changed = Signal(int, str)
+    surname_changed = Signal(str)
 
     def __init__(
         self,
         studio_name: str,
         number: int = 0,
         queue_prefix: str = "",
+        queue_mode: str = "number",
+        current_surname: str = "",
     ) -> None:
         super().__init__()
 
         self._number = self._safe_number(number)
         self._queue_prefix = self._clean_prefix(queue_prefix)
+        self._queue_mode = self._clean_queue_mode(queue_mode)
+        self._surname = self._clean_surname(current_surname)
 
         self.setObjectName("studioCard")
-
         self._compact_mode = False
 
         self.setMinimumHeight(300)
         self.setMaximumHeight(380)
-
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
         )
 
         self._build_interface(studio_name)
+        self._refresh_mode_ui()
         self._apply_style()
 
     @property
     def number(self) -> int:
         return self._number
 
-    def _build_interface(
-        self,
-        studio_name: str,
-    ) -> None:
-        self.name_label = QLabel(
-            self._clean_studio_name(studio_name)
-        )
-        self.name_label.setObjectName(
-            "studioCardName"
-        )
-        self.name_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
+    @property
+    def surname(self) -> str:
+        return self._surname
+
+    @property
+    def queue_mode(self) -> str:
+        return self._queue_mode
+
+    def _build_interface(self, studio_name: str) -> None:
+        self.name_label = QLabel(self._clean_studio_name(studio_name))
+        self.name_label.setObjectName("studioCardName")
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
         self.name_label.setMaximumHeight(42)
 
-        self.number_label = QLabel(
-            self._formatted_number()
-        )
-        self.number_label.setObjectName(
-            "studioCardNumber"
-        )
-        self.number_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
+        self.number_label = QLabel()
+        self.number_label.setObjectName("studioCardNumber")
+        self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.number_label.setMinimumHeight(105)
         self.number_label.setMaximumHeight(125)
+        self.number_label.setWordWrap(True)
 
-        self.decrement_button = QPushButton(
-            "−1"
-        )
-        self.decrement_button.setObjectName(
-            "studioDecrementButton"
-        )
+        self.decrement_button = QPushButton("−1")
+        self.decrement_button.setObjectName("studioDecrementButton")
         self.decrement_button.setFixedHeight(56)
-        self.decrement_button.clicked.connect(
-            self.decrement
-        )
+        self.decrement_button.clicked.connect(self.decrement)
 
-        self.increment_button = QPushButton(
-            "+1"
-        )
-        self.increment_button.setObjectName(
-            "studioIncrementButton"
-        )
+        self.increment_button = QPushButton("+1")
+        self.increment_button.setObjectName("studioIncrementButton")
         self.increment_button.setFixedHeight(56)
-        self.increment_button.clicked.connect(
-            self.increment
-        )
+        self.increment_button.clicked.connect(self.increment)
 
         buttons_layout = QHBoxLayout()
-        buttons_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
         buttons_layout.setSpacing(14)
-
-        buttons_layout.addWidget(
-            self.decrement_button,
-            stretch=1,
-        )
-        buttons_layout.addWidget(
-            self.increment_button,
-            stretch=1,
-        )
+        buttons_layout.addWidget(self.decrement_button, stretch=1)
+        buttons_layout.addWidget(self.increment_button, stretch=1)
 
         self.manual_number_input = QLineEdit()
         self.manual_number_input.setObjectName("studioManualNumberInput")
@@ -134,49 +108,52 @@ class StudioCard(QFrame):
         manual_layout.addWidget(self.manual_number_input, stretch=1)
         manual_layout.addWidget(self.manual_number_button, stretch=1)
 
-        self.reset_button = QPushButton(
-            "Reset"
-        )
-        self.reset_button.setObjectName(
-            "studioResetButton"
-        )
+        self.surname_input = QLineEdit()
+        self.surname_input.setObjectName("studioSurnameInput")
+        self.surname_input.setPlaceholderText("Cognome paziente")
+        self.surname_input.setMaxLength(60)
+        self.surname_input.setFixedHeight(56)
+        self.surname_input.returnPressed.connect(self.call_surname)
+
+        self.surname_button = QPushButton("Chiama")
+        self.surname_button.setObjectName("studioSurnameButton")
+        self.surname_button.setFixedHeight(56)
+        self.surname_button.clicked.connect(self.call_surname)
+
+        surname_layout = QHBoxLayout()
+        surname_layout.setContentsMargins(0, 0, 0, 0)
+        surname_layout.setSpacing(10)
+        surname_layout.addWidget(self.surname_input, stretch=2)
+        surname_layout.addWidget(self.surname_button, stretch=1)
+
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.setObjectName("studioResetButton")
         self.reset_button.setFixedHeight(42)
-        self.reset_button.clicked.connect(
-            self.confirm_reset
-        )
+        self.reset_button.clicked.connect(self.confirm_reset)
 
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(
-            24,
-            16,
-            24,
-            18,
-        )
+        self.main_layout.setContentsMargins(24, 16, 24, 18)
         self.main_layout.setSpacing(8)
-
-        self.main_layout.addWidget(
-            self.name_label
-        )
-        self.main_layout.addWidget(
-            self.number_label
-        )
+        self.main_layout.addWidget(self.name_label)
+        self.main_layout.addWidget(self.number_label)
         self.main_layout.addLayout(buttons_layout)
         self.main_layout.addLayout(manual_layout)
+        self.main_layout.addLayout(surname_layout)
         self.main_layout.addWidget(self.reset_button)
 
     def increment(self) -> None:
-        self._set_number_from_user(
-            self._number + 1,
-            action="increment",
-        )
+        if self._queue_mode != "number":
+            return
+        self._set_number_from_user(self._number + 1, action="increment")
 
     def decrement(self) -> None:
-        self._set_number_from_user(
-            max(0, self._number - 1),
-            action="decrement",
-        )
+        if self._queue_mode != "number":
+            return
+        self._set_number_from_user(max(0, self._number - 1), action="decrement")
 
     def set_manual_number(self) -> None:
+        if self._queue_mode != "number":
+            return
         text = self.manual_number_input.text().strip()
         if not text:
             self.manual_number_input.setFocus()
@@ -184,92 +161,105 @@ class StudioCard(QFrame):
         self._set_number_from_user(self._safe_number(text), action="set")
         self.manual_number_input.clear()
 
-    def confirm_reset(self) -> None:
-        if self._number == 0:
+    def call_surname(self) -> None:
+        if self._queue_mode != "surname":
             return
+        surname = self._clean_surname(self.surname_input.text())
+        if not surname:
+            self.surname_input.setFocus()
+            return
+        self._surname = surname
+        self.number_label.setText(self._formatted_value())
+        self.surname_input.clear()
+        self.surname_changed.emit(self._surname)
+
+    def confirm_reset(self) -> None:
+        if self._queue_mode == "surname":
+            if not self._surname:
+                return
+            message = "Vuoi davvero cancellare il cognome attualmente chiamato?"
+        else:
+            if self._number == 0:
+                return
+            message = "Vuoi davvero azzerare il numero della coda?"
 
         answer = QMessageBox.question(
             self,
             "Conferma reset",
-            (
-                "Vuoi davvero azzerare "
-                "il numero della coda?"
-            ),
-            (
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.No
-            ),
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
-
         if answer != QMessageBox.StandardButton.Yes:
             return
-
         self.reset()
 
     def reset(self) -> None:
-        self._set_number_from_user(
-            0,
-            action="reset",
-        )
+        if self._queue_mode == "surname":
+            self._surname = ""
+            self.number_label.setText(self._formatted_value())
+            self.surname_changed.emit("")
+            return
+        self._set_number_from_user(0, action="reset")
 
-    def set_number(
-        self,
-        number: int,
-    ) -> None:
+    def set_number(self, number: int) -> None:
         safe_number = self._safe_number(number)
-
         if safe_number == self._number:
             return
-
         self._number = safe_number
-        self.number_label.setText(
-            self._formatted_number()
-        )
+        if self._queue_mode == "number":
+            self.number_label.setText(self._formatted_value())
+
+    def set_surname(self, surname: str) -> None:
+        clean_surname = self._clean_surname(surname)
+        if clean_surname == self._surname:
+            return
+        self._surname = clean_surname
+        if self._queue_mode == "surname":
+            self.number_label.setText(self._formatted_value())
 
     def set_queue_prefix(self, queue_prefix: str) -> None:
         clean_prefix = self._clean_prefix(queue_prefix)
         if clean_prefix == self._queue_prefix:
             return
         self._queue_prefix = clean_prefix
-        self.number_label.setText(self._formatted_number())
+        if self._queue_mode == "number":
+            self.number_label.setText(self._formatted_value())
 
-    def set_studio_name(
-        self,
-        studio_name: str,
-    ) -> None:
-        self.name_label.setText(
-            self._clean_studio_name(
-                studio_name
-            )
-        )
+    def set_queue_mode(self, queue_mode: str) -> None:
+        clean_mode = self._clean_queue_mode(queue_mode)
+        if clean_mode == self._queue_mode:
+            return
+        self._queue_mode = clean_mode
+        self._refresh_mode_ui()
+        self._apply_style()
 
-    def _set_number_from_user(
-        self,
-        number: int,
-        *,
-        action: str,
-    ) -> None:
+    def set_studio_name(self, studio_name: str) -> None:
+        self.name_label.setText(self._clean_studio_name(studio_name))
+
+    def _set_number_from_user(self, number: int, *, action: str) -> None:
         safe_number = self._safe_number(number)
-
         if safe_number == self._number:
             return
-
         self._number = safe_number
-        self.number_label.setText(
-            self._formatted_number()
-        )
+        self.number_label.setText(self._formatted_value())
+        self.number_changed.emit(self._number, action)
 
-        self.number_changed.emit(
-            self._number,
-            action,
-        )
+    def _refresh_mode_ui(self) -> None:
+        surname_mode = self._queue_mode == "surname"
+        self.decrement_button.setVisible(not surname_mode)
+        self.increment_button.setVisible(not surname_mode)
+        self.manual_number_input.setVisible(not surname_mode)
+        self.manual_number_button.setVisible(not surname_mode)
+        self.surname_input.setVisible(surname_mode)
+        self.surname_button.setVisible(surname_mode)
+        self.reset_button.setText("Cancella chiamata" if surname_mode else "Reset")
+        self.number_label.setText(self._formatted_value())
 
     def set_compact_mode(self, compact: bool) -> None:
         compact = bool(compact)
         if compact == self._compact_mode:
             return
-
         self._compact_mode = compact
 
         if compact:
@@ -282,6 +272,8 @@ class StudioCard(QFrame):
             self.increment_button.setFixedHeight(46)
             self.manual_number_input.setFixedHeight(36)
             self.manual_number_button.setFixedHeight(36)
+            self.surname_input.setFixedHeight(46)
+            self.surname_button.setFixedHeight(46)
             self.reset_button.setFixedHeight(36)
             self.main_layout.setContentsMargins(18, 10, 18, 12)
             self.main_layout.setSpacing(5)
@@ -295,6 +287,8 @@ class StudioCard(QFrame):
             self.increment_button.setFixedHeight(56)
             self.manual_number_input.setFixedHeight(42)
             self.manual_number_button.setFixedHeight(42)
+            self.surname_input.setFixedHeight(56)
+            self.surname_button.setFixedHeight(56)
             self.reset_button.setFixedHeight(42)
             self.main_layout.setContentsMargins(24, 16, 24, 18)
             self.main_layout.setSpacing(8)
@@ -303,7 +297,10 @@ class StudioCard(QFrame):
         self.updateGeometry()
 
     def _apply_style(self) -> None:
-        number_font = 76 if self._compact_mode else 94
+        if self._queue_mode == "surname":
+            value_font = 42 if self._compact_mode else 52
+        else:
+            value_font = 76 if self._compact_mode else 94
         name_font = 21 if self._compact_mode else 25
         button_font = 18 if self._compact_mode else 21
 
@@ -313,55 +310,41 @@ class StudioCard(QFrame):
                 border: 1px solid #d3dfe8;
                 border-radius: 22px;
             }
-
             QLabel#studioCardName {
                 color: #183b56;
                 font-size: __NAME_FONT__px;
                 font-weight: 900;
             }
-
             QLabel#studioCardNumber {
                 color: #17689c;
-                font-size: __NUMBER_FONT__px;
+                font-size: __VALUE_FONT__px;
                 font-weight: 900;
                 padding: 0;
                 margin: 0;
             }
-
             QPushButton {
                 border: none;
                 border-radius: 13px;
                 font-size: __BUTTON_FONT__px;
                 font-weight: 800;
             }
-
             QPushButton#studioDecrementButton {
                 background-color: #dfe8f0;
                 color: #294c64;
             }
-
-            QPushButton#studioDecrementButton:hover {
-                background-color: #d2dee8;
-            }
-
-            QPushButton#studioDecrementButton:pressed {
-                background-color: #c5d4df;
-            }
-
-            QPushButton#studioIncrementButton {
+            QPushButton#studioDecrementButton:hover { background-color: #d2dee8; }
+            QPushButton#studioDecrementButton:pressed { background-color: #c5d4df; }
+            QPushButton#studioIncrementButton,
+            QPushButton#studioSurnameButton {
                 background-color: #218b5d;
                 color: white;
             }
-
-            QPushButton#studioIncrementButton:hover {
-                background-color: #19794f;
-            }
-
-            QPushButton#studioIncrementButton:pressed {
-                background-color: #126b43;
-            }
-
-            QLineEdit#studioManualNumberInput {
+            QPushButton#studioIncrementButton:hover,
+            QPushButton#studioSurnameButton:hover { background-color: #19794f; }
+            QPushButton#studioIncrementButton:pressed,
+            QPushButton#studioSurnameButton:pressed { background-color: #126b43; }
+            QLineEdit#studioManualNumberInput,
+            QLineEdit#studioSurnameInput {
                 background-color: white;
                 color: #213d53;
                 border: 1px solid #cbd8e3;
@@ -369,7 +352,8 @@ class StudioCard(QFrame):
                 padding: 6px 10px;
                 font-size: 17px;
             }
-
+            QLineEdit#studioManualNumberInput:focus,
+            QLineEdit#studioSurnameInput:focus { border: 2px solid #218b5d; }
             QPushButton#studioManualNumberButton {
                 background-color: #17689c;
                 color: white;
@@ -377,11 +361,7 @@ class StudioCard(QFrame):
                 font-weight: 800;
                 border-radius: 10px;
             }
-
-            QPushButton#studioManualNumberButton:hover {
-                background-color: #125b88;
-            }
-
+            QPushButton#studioManualNumberButton:hover { background-color: #125b88; }
             QPushButton#studioResetButton {
                 background-color: #f7e3e1;
                 color: #ad392f;
@@ -389,23 +369,26 @@ class StudioCard(QFrame):
                 font-weight: 800;
                 border-radius: 11px;
             }
-
-            QPushButton#studioResetButton:hover {
-                background-color: #f1d4d1;
-            }
-
-            QPushButton#studioResetButton:pressed {
-                background-color: #eac5c1;
-            }
+            QPushButton#studioResetButton:hover { background-color: #f1d4d1; }
+            QPushButton#studioResetButton:pressed { background-color: #eac5c1; }
         """
-
         style = style.replace("__NAME_FONT__", str(name_font))
-        style = style.replace("__NUMBER_FONT__", str(number_font))
+        style = style.replace("__VALUE_FONT__", str(value_font))
         style = style.replace("__BUTTON_FONT__", str(button_font))
         self.setStyleSheet(style)
 
-    def _formatted_number(self) -> str:
+    def _formatted_value(self) -> str:
+        if self._queue_mode == "surname":
+            return self._surname.upper() if self._surname else "—"
         return f"{self._queue_prefix}{self._number}"
+
+    @staticmethod
+    def _clean_queue_mode(value: object) -> str:
+        return "surname" if str(value or "").strip().lower() == "surname" else "number"
+
+    @staticmethod
+    def _clean_surname(value: object) -> str:
+        return " ".join(str(value or "").strip().split())[:60]
 
     @staticmethod
     def _clean_prefix(value: object) -> str:
@@ -416,24 +399,13 @@ class StudioCard(QFrame):
         return first if "A" <= first <= "Z" else ""
 
     @staticmethod
-    def _safe_number(
-        value: object,
-    ) -> int:
+    def _safe_number(value: object) -> int:
         try:
             return max(0, int(value))
-        except (
-            TypeError,
-            ValueError,
-        ):
+        except (TypeError, ValueError):
             return 0
 
     @staticmethod
-    def _clean_studio_name(
-        value: object,
-    ) -> str:
+    def _clean_studio_name(value: object) -> str:
         clean_name = str(value).strip()
-
-        if clean_name:
-            return clean_name
-
-        return "Medico"
+        return clean_name if clean_name else "Medico"
