@@ -85,9 +85,9 @@ class SettingsDialog(QDialog):
 
         doctor_form = QFormLayout()
         doctor_form.setVerticalSpacing(14)
-        doctor_name_label = QLabel("Nome visualizzato:")
-        doctor_name_label.setStyleSheet("color: #213d53;")
 
+        doctor_name_label = QLabel("Nome visualizzato:")
+        doctor_name_label.setObjectName("settingsFormLabel")
         doctor_form.addRow(
             doctor_name_label,
             self.doctor_name_input,
@@ -101,8 +101,7 @@ class SettingsDialog(QDialog):
             str(current_config.get("queue_prefix", "")).upper()
         )
         queue_prefix_label = QLabel("Lettera della coda:")
-        queue_prefix_label.setStyleSheet("color: #213d53;")
-
+        queue_prefix_label.setObjectName("settingsFormLabel")
         doctor_form.addRow(
             queue_prefix_label,
             self.queue_prefix_input,
@@ -120,8 +119,7 @@ class SettingsDialog(QDialog):
         )
         self.queue_mode_combo.setCurrentIndex(max(0, mode_index))
         queue_mode_label = QLabel("Modalità chiamata:")
-        queue_mode_label.setStyleSheet("color: #213d53;")
-
+        queue_mode_label.setObjectName("settingsFormLabel")
         doctor_form.addRow(
             queue_mode_label,
             self.queue_mode_combo,
@@ -200,8 +198,11 @@ class SettingsDialog(QDialog):
 
         timer_form = QFormLayout()
         timer_form.setVerticalSpacing(14)
+
+        warning_threshold_label = QLabel("Soglia avviso:")
+        warning_threshold_label.setObjectName("settingsFormLabel")
         timer_form.addRow(
-            "Soglia avviso:",
+            warning_threshold_label,
             self.patient_warning_minutes,
         )
 
@@ -378,6 +379,11 @@ class SettingsDialog(QDialog):
                 letter-spacing: 2px;
             }
 
+            QLabel#settingsFormLabel {
+                color: #213d53;
+                font-size: 15px;
+            }
+
             QLineEdit, QSpinBox, QComboBox {
                 background-color: white;
                 color: #213d53;
@@ -387,15 +393,16 @@ class SettingsDialog(QDialog):
                 font-size: 16px;
             }
 
+            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+                border: 2px solid #218b5d;
+            }
+
             QComboBox QAbstractItemView {
                 background-color: white;
                 color: #213d53;
+                border: 1px solid #cbd8e3;
                 selection-background-color: #dce8f1;
                 selection-color: #213d53;
-            }
-
-            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
-                border: 2px solid #218b5d;
             }
 
             QCheckBox {
@@ -456,6 +463,42 @@ class SettingsDialog(QDialog):
 
             QPushButton#settingsSaveButton:hover {
                 background-color: #19794f;
+            }
+
+
+            QMessageBox,
+            QInputDialog {
+                background-color: #eef3f8;
+            }
+
+            QMessageBox QLabel,
+            QInputDialog QLabel {
+                color: #213d53;
+                background-color: transparent;
+            }
+
+            QMessageBox QPushButton,
+            QInputDialog QPushButton {
+                background-color: #dce8f1;
+                color: #234f6e;
+                border: 1px solid #c5d6e3;
+                border-radius: 8px;
+                padding: 7px 18px;
+                min-width: 72px;
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+            QMessageBox QPushButton:hover,
+            QInputDialog QPushButton:hover {
+                background-color: #cfdee9;
+            }
+
+            QMessageBox QPushButton:default,
+            QInputDialog QPushButton:default {
+                background-color: #218b5d;
+                color: white;
+                border-color: #218b5d;
             }
             """
         )

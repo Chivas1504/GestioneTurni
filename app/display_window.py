@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QKeyEvent
+from PySide6.QtGui import QColor, QKeyEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -62,7 +62,6 @@ class DoctorDisplayCard(QFrame):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-        self._number_font = QFont(self.number_label.font())
 
         self.status_label = QLabel("Recarsi presso lo studio indicato")
         self.status_label.setObjectName("displayDoctorStatus")
@@ -80,7 +79,7 @@ class DoctorDisplayCard(QFrame):
         card_layout.addStretch()
         card_layout.addWidget(self.status_label)
 
-        self._apply_value_font()
+        self._apply_value_style()
         self._apply_shadow()
 
     def update_doctor(
@@ -112,17 +111,18 @@ class DoctorDisplayCard(QFrame):
 
         self.called_label.setText(self._called_text())
         self.number_label.setText(self._formatted_value())
-        self._apply_value_font()
+        self._apply_value_style()
 
-    def _apply_value_font(self) -> None:
-        font = QFont(self._number_font)
+    def _apply_value_style(self) -> None:
+        self.number_label.setProperty(
+            "queueMode",
+            self._queue_mode,
+        )
 
-        if self._queue_mode == "surname":
-            font.setPixelSize(110)
-        else:
-            font.setPixelSize(250)
-
-        self.number_label.setFont(font)
+        style = self.number_label.style()
+        style.unpolish(self.number_label)
+        style.polish(self.number_label)
+        self.number_label.update()
 
     def _called_text(self) -> str:
         if self._queue_mode == "surname":
@@ -353,6 +353,10 @@ class DisplayWindow(QMainWindow):
                 color: #145f91;
                 font-size: 250px;
                 font-weight: 900;
+            }
+
+            QLabel#displayDoctorNumber[queueMode="surname"] {
+                font-size: 80px;
             }
 
             QLabel#displayDoctorStatus {
