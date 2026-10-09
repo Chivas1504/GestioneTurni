@@ -214,7 +214,16 @@ class AppController(QObject):
         account_queue_mode = self._clean_queue_mode(
             account.get("queue_mode", self.queue_mode)
         )
+
+        local_shared_mode = self._clean_queue_mode(
+            self.shared_state.get_local_doctor().get(
+                "queue_mode",
+                self.queue_mode,
+            )
+        )
+
         mode_changed = account_queue_mode != self.queue_mode
+        shared_mode_changed = account_queue_mode != local_shared_mode
 
         changed = False
         for key in (
@@ -230,15 +239,24 @@ class AppController(QObject):
                 self.config[key] = account.get(key)
                 changed = True
 
-        if mode_changed:
+        if mode_changed or shared_mode_changed:
             self.queue_mode = account_queue_mode
-            self.current_surname = ""
             self.config["queue_mode"] = self.queue_mode
-            self.config["current_surname"] = ""
 
+            if mode_changed:
+                self.current_surname = ""
+                self.config["current_surname"] = ""
+
+            # Riconcilia SEMPRE SharedState con la preferenza account.
+            # Questo evita il caso in cui self.queue_mode sia già corretto
+            # ma la UI/card sia rimasta bloccata sulla modalità precedente.
             self.shared_state.update_local(
                 queue_mode=self.queue_mode,
-                current_surname="",
+                current_surname=(
+                    ""
+                    if mode_changed
+                    else self.current_surname
+                ),
                 broadcast=False,
             )
             changed = True
@@ -369,7 +387,16 @@ class AppController(QObject):
             settings.get("queue_mode", self.queue_mode)
         )
 
+        local_shared_mode = self._clean_queue_mode(
+            self.shared_state.get_local_doctor().get(
+                "queue_mode",
+                self.queue_mode,
+            )
+        )
+
         mode_changed = new_queue_mode != self.queue_mode
+        shared_mode_changed = new_queue_mode != local_shared_mode
+
         self.config.update(settings)
         self.config["queue_prefix"] = new_prefix
         self.config["queue_mode"] = new_queue_mode
@@ -408,16 +435,26 @@ class AppController(QObject):
                 queue_prefix=self.queue_prefix
             )
 
-        if mode_changed:
+        if mode_changed or shared_mode_changed:
             self.queue_mode = new_queue_mode
+
+            # Anche se il controller pensa di essere già nella modalità
+            # selezionata, forziamo la riconciliazione con SharedState:
+            # è SharedState che alimenta la card della finestra principale.
             self.shared_state.update_local(
                 queue_mode=self.queue_mode,
-                current_surname="",
+                current_surname=(
+                    ""
+                    if mode_changed
+                    else self.current_surname
+                ),
             )
-            self._sync_patient_timer_state()
-            self.patient_timer_changed.emit(
-                self.get_current_patient_timer()
-            )
+
+            if mode_changed:
+                self._sync_patient_timer_state()
+                self.patient_timer_changed.emit(
+                    self.get_current_patient_timer()
+                )
 
         self.settings_changed.emit(
             dict(self.config)
