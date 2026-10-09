@@ -52,7 +52,7 @@ class SharedState(QObject):
     def get_local_doctor(self) -> dict[str, Any]:
         return self.get_doctor(self.local_doctor_id)
 
-    def update_local(self, *, doctor_name: str | None = None, queue_prefix: str | None = None, queue_mode: str | None = None, current_surname: str | None = None, number: int | None = None, queue_active: bool | None = None, online: bool | None = None) -> None:
+    def update_local(self, *, doctor_name: str | None = None, queue_prefix: str | None = None, queue_mode: str | None = None, current_surname: str | None = None, number: int | None = None, queue_active: bool | None = None, online: bool | None = None, broadcast: bool = True) -> None:
         with self._lock:
             current = self.get_doctor(self.local_doctor_id)
             if doctor_name is not None:
@@ -76,7 +76,8 @@ class SharedState(QObject):
             self._state[self.local_doctor_id] = normalise_doctor_state(current, expected_doctor_id=self.local_doctor_id)
             local_copy = deepcopy(self._state[self.local_doctor_id])
             all_copy = deepcopy(self._state)
-        self.local_state_changed.emit(local_copy)
+        if broadcast:
+            self.local_state_changed.emit(local_copy)
         self.state_changed.emit(all_copy)
 
     def update_local_patient_timer(
@@ -113,26 +114,20 @@ class SharedState(QObject):
         with self._lock:
             current = self._state.get(doctor_id)
 
+            # Per account diversi continuiamo a usare updated_at.
+            # Se invece lo stesso account è aperto su più PC, confrontare
+            # time.time() di due computer diversi può scartare una chiamata
+            # valida (es. il nuovo cognome) solo perché gli orologi non sono
+            # perfettamente sincronizzati. Un DOCTOR_UPDATE è un'azione
+            # esplicita del peer e per lo stesso doctor_id va accettato
+            # nell'ordine in cui il Server lo riceve.
             if (
-                current is not None
+                doctor_id != self.local_doctor_id
+                and current is not None
                 and float(incoming.get("updated_at", 0.0))
                 < float(current.get("updated_at", 0.0))
             ):
                 return
-
-            # La modalità di chiamata è una preferenza dell'account.
-            # Per lo stesso account aperto su più PC viene sincronizzata
-            # tramite AccountStore; una copia di stato remota non deve
-            # quindi riportare temporaneamente il PC locale alla modalità
-            # precedente.
-            if (
-                doctor_id == self.local_doctor_id
-                and current is not None
-            ):
-                incoming["queue_mode"] = current.get(
-                    "queue_mode",
-                    "number",
-                )
 
             self._state[doctor_id] = incoming
             all_copy = deepcopy(self._state)
@@ -141,39 +136,39 @@ class SharedState(QObject):
 
     def apply_complete_state(self, complete_state: dict[str, Any]) -> None:
         changed = False
+
         with self._lock:
             for doctor_id, raw in complete_state.items():
                 if not isinstance(raw, dict):
                     continue
+
                 doctor_id = str(doctor_id).strip()
                 if not doctor_id:
                     continue
+
                 incoming = normalise_doctor_state(
                     raw,
                     expected_doctor_id=doctor_id,
                 )
                 current = self._state.get(doctor_id)
 
+                # Lo stato completo arriva dal Server ed è autorevole per
+                # l'account locale. Non usiamo il clock locale per decidere
+                # se accettarlo: due PC possono avere orologi differenti.
                 if (
-                    current is not None
+                    doctor_id != self.local_doctor_id
+                    and current is not None
                     and float(incoming.get("updated_at", 0.0))
                     < float(current.get("updated_at", 0.0))
                 ):
                     continue
 
-                if (
-                    doctor_id == self.local_doctor_id
-                    and current is not None
-                ):
-                    incoming["queue_mode"] = current.get(
-                        "queue_mode",
-                        "number",
-                    )
-
                 if incoming != current:
                     self._state[doctor_id] = incoming
                     changed = True
+
             all_copy = deepcopy(self._state)
+
         if changed:
             self.state_changed.emit(all_copy)
 

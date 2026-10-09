@@ -184,7 +184,10 @@ class AppController(QObject):
         )
 
     def _on_account_records_received(self, records: object) -> None:
-        self.account_store.merge_records(records)
+        self.account_store.merge_records(
+            records,
+            authoritative=True,
+        )
 
         if isinstance(records, list):
             for record in records:
@@ -236,6 +239,7 @@ class AppController(QObject):
             self.shared_state.update_local(
                 queue_mode=self.queue_mode,
                 current_surname="",
+                broadcast=False,
             )
             changed = True
 

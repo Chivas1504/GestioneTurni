@@ -73,7 +73,15 @@ class NetworkManager(QObject):
         if self.role == "server":
             store = self._account_store
             if store is not None and hasattr(store, "merge_records"):
-                store.merge_records([record])
+                server_record = dict(record)
+                server_record["updated_at"] = time.time()
+                try:
+                    store.merge_records(
+                        [server_record],
+                        authoritative=True,
+                    )
+                except TypeError:
+                    store.merge_records([server_record])
             return
         self.send_message({"type": "__account_record", "record": dict(record)})
 
@@ -380,8 +388,21 @@ class NetworkManager(QObject):
                             store = self._account_store
                             if store is not None and hasattr(store, "merge_records"):
                                 record = message.get("record")
-                                store.merge_records([record])
-                                self.account_records_received.emit([record])
+                                if isinstance(record, dict):
+                                    server_record = dict(record)
+                                    server_record["updated_at"] = time.time()
+                                    try:
+                                        store.merge_records(
+                                            [server_record],
+                                            authoritative=True,
+                                        )
+                                    except TypeError:
+                                        # Compatibilità temporanea con un eventuale
+                                        # AccountStore precedente durante un update.
+                                        store.merge_records([server_record])
+                                    self.account_records_received.emit(
+                                        [server_record]
+                                    )
                             continue
                         self.message_received.emit(message)
 

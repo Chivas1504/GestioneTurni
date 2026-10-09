@@ -220,7 +220,12 @@ class AccountStore:
 
             return dict(updated)
 
-    def merge_records(self, records: object) -> None:
+    def merge_records(
+        self,
+        records: object,
+        *,
+        authoritative: bool = False,
+    ) -> None:
         if not isinstance(records, list):
             return
 
@@ -275,8 +280,18 @@ class AccountStore:
                 except (TypeError, ValueError):
                     current_ts = -1.0
 
+                # Un tombstone locale non deve mai essere "resuscitato"
+                # da un client rimasto offline con una vecchia copia.
                 if (
                     current is not None
+                    and bool(current.get("deleted", False))
+                    and not is_deleted
+                ):
+                    continue
+
+                if (
+                    not authoritative
+                    and current is not None
                     and incoming_ts < current_ts
                 ):
                     continue
