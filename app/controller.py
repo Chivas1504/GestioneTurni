@@ -207,6 +207,12 @@ class AppController(QObject):
         account = self.account_store.get(self.doctor_id)
         if account is None:
             return
+
+        account_queue_mode = self._clean_queue_mode(
+            account.get("queue_mode", self.queue_mode)
+        )
+        mode_changed = account_queue_mode != self.queue_mode
+
         changed = False
         for key in (
             "patient_time_warning_enabled",
@@ -220,6 +226,19 @@ class AppController(QObject):
             if key in account and self.config.get(key) != account.get(key):
                 self.config[key] = account.get(key)
                 changed = True
+
+        if mode_changed:
+            self.queue_mode = account_queue_mode
+            self.current_surname = ""
+            self.config["queue_mode"] = self.queue_mode
+            self.config["current_surname"] = ""
+
+            self.shared_state.update_local(
+                queue_mode=self.queue_mode,
+                current_surname="",
+            )
+            changed = True
+
         if changed:
             save_config(self.config)
             self.settings_changed.emit(dict(self.config))

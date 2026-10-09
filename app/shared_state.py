@@ -105,13 +105,38 @@ class SharedState(QObject):
     def apply_remote_doctor(self, doctor_state: dict[str, Any]) -> None:
         doctor_id = str(doctor_state.get("doctor_id", "")).strip()
         validate_doctor_id(doctor_id)
-        incoming = normalise_doctor_state(doctor_state, expected_doctor_id=doctor_id)
+        incoming = normalise_doctor_state(
+            doctor_state,
+            expected_doctor_id=doctor_id,
+        )
+
         with self._lock:
             current = self._state.get(doctor_id)
-            if current is not None and float(incoming.get("updated_at", 0.0)) < float(current.get("updated_at", 0.0)):
+
+            if (
+                current is not None
+                and float(incoming.get("updated_at", 0.0))
+                < float(current.get("updated_at", 0.0))
+            ):
                 return
+
+            # La modalità di chiamata è una preferenza dell'account.
+            # Per lo stesso account aperto su più PC viene sincronizzata
+            # tramite AccountStore; una copia di stato remota non deve
+            # quindi riportare temporaneamente il PC locale alla modalità
+            # precedente.
+            if (
+                doctor_id == self.local_doctor_id
+                and current is not None
+            ):
+                incoming["queue_mode"] = current.get(
+                    "queue_mode",
+                    "number",
+                )
+
             self._state[doctor_id] = incoming
             all_copy = deepcopy(self._state)
+
         self.state_changed.emit(all_copy)
 
     def apply_complete_state(self, complete_state: dict[str, Any]) -> None:
@@ -123,10 +148,28 @@ class SharedState(QObject):
                 doctor_id = str(doctor_id).strip()
                 if not doctor_id:
                     continue
-                incoming = normalise_doctor_state(raw, expected_doctor_id=doctor_id)
+                incoming = normalise_doctor_state(
+                    raw,
+                    expected_doctor_id=doctor_id,
+                )
                 current = self._state.get(doctor_id)
-                if current is not None and float(incoming.get("updated_at", 0.0)) < float(current.get("updated_at", 0.0)):
+
+                if (
+                    current is not None
+                    and float(incoming.get("updated_at", 0.0))
+                    < float(current.get("updated_at", 0.0))
+                ):
                     continue
+
+                if (
+                    doctor_id == self.local_doctor_id
+                    and current is not None
+                ):
+                    incoming["queue_mode"] = current.get(
+                        "queue_mode",
+                        "number",
+                    )
+
                 if incoming != current:
                     self._state[doctor_id] = incoming
                     changed = True
