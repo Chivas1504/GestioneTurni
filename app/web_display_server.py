@@ -462,6 +462,59 @@ DISPLAY_HTML = r"""<!doctype html>
     var lastSuccessfulConnection = 0;
     var disconnectedVisible = false;
 
+    var screenWakeLock = null;
+    var wakeLockRetryTimer = null;
+
+    function requestScreenWakeLock() {
+        if (!("wakeLock" in navigator) || !navigator.wakeLock ||
+                typeof navigator.wakeLock.request !== "function") {
+            return;
+        }
+
+        if (document.visibilityState && document.visibilityState !== "visible") {
+            return;
+        }
+
+        try {
+            var request = navigator.wakeLock.request("screen");
+            if (request && typeof request.then === "function") {
+                request.then(function (lock) {
+                    screenWakeLock = lock;
+
+                    if (lock && typeof lock.addEventListener === "function") {
+                        lock.addEventListener("release", function () {
+                            screenWakeLock = null;
+                        });
+                    } else if (lock) {
+                        lock.onrelease = function () {
+                            screenWakeLock = null;
+                        };
+                    }
+                }).catch(function () {
+                    screenWakeLock = null;
+                });
+            }
+        } catch (ignore) {
+            screenWakeLock = null;
+        }
+    }
+
+    function keepScreenAwake() {
+        requestScreenWakeLock();
+
+        if (wakeLockRetryTimer) {
+            window.clearInterval(wakeLockRetryTimer);
+        }
+
+        /* Alcune Smart TV rilasciano il lock dopo cambi di pagina/stato
+           energetico. Riproviamo periodicamente senza interferire con TV
+           che non supportano la Screen Wake Lock API. */
+        wakeLockRetryTimer = window.setInterval(
+            requestScreenWakeLock,
+            30000
+        );
+    }
+
     function trimText(value) {
         return String(value || "").replace(/^\s+|\s+$/g, "");
     }
@@ -859,7 +912,24 @@ DISPLAY_HTML = r"""<!doctype html>
         clock.innerHTML = twoDigits(now.getHours()) + ":" + twoDigits(now.getMinutes());
     }
 
-    audioButton.onclick = enableAudio;
+    audioButton.onclick = function () {
+        enableAudio();
+        requestScreenWakeLock();
+    };
+
+    if (document.addEventListener) {
+        document.addEventListener("visibilitychange", function () {
+            if (!document.visibilityState || document.visibilityState === "visible") {
+                requestScreenWakeLock();
+            }
+        });
+
+        document.addEventListener("click", requestScreenWakeLock);
+        document.addEventListener("touchstart", requestScreenWakeLock);
+        document.addEventListener("keydown", requestScreenWakeLock);
+    }
+
+    keepScreenAwake();
 
     updateClock();
     window.setInterval(updateClock, 1000);

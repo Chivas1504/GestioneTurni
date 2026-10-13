@@ -142,6 +142,10 @@ class AppController(QObject):
         self.dashboard_window = None
         self._account_deleted = False
 
+        # Protegge per pochi secondi gli aggiornamenti locali del timer da
+        # eventuali snapshot di rete arrivati in ritardo.
+        self._patient_timer_sync_guard_until = 0.0
+
         self._connect_components()
 
         if self.queue_active:
@@ -636,6 +640,11 @@ class AppController(QObject):
             self.doctor_id,
         )
 
+        # In modalità cognome ogni nuova chiamata corrisponde a un nuovo
+        # paziente: chiudiamo il timer precedente prima di avviare il nuovo.
+        if self.queue_mode == "surname" and self.queue_active:
+            self._finish_current_patient()
+
         self.current_surname = clean_surname
         self.config["current_surname"] = self.current_surname
         save_config(self.config)
@@ -643,6 +652,11 @@ class AppController(QObject):
         self.shared_state.update_local(
             current_surname=self.current_surname
         )
+
+        if self.queue_mode == "surname" and self.queue_active and clean_surname:
+            self._start_patient_timer(
+                self.get_local_number()
+            )
 
     def get_current_surname(self) -> str:
         return self.current_surname
@@ -717,7 +731,11 @@ class AppController(QObject):
             "paused": active and self._patient_paused_at is not None,
             "paused_at": self._patient_paused_at,
             "ticket": (
-                f"{self._patient_prefix}{self._patient_number}"
+                (
+                    self.current_surname
+                    if self.queue_mode == "surname"
+                    else f"{self._patient_prefix}{self._patient_number}"
+                )
                 if active
                 else ""
             ),
@@ -727,6 +745,7 @@ class AppController(QObject):
         if self._patient_started_at is None or self._patient_number is None:
             return
 
+        self._guard_local_patient_timer_update()
         now = time.time()
         if self._patient_paused_at is None:
             self._patient_paused_at = now
@@ -740,6 +759,7 @@ class AppController(QObject):
         self.patient_timer_changed.emit(self.get_current_patient_timer())
 
     def _start_patient_timer(self, patient_number: int) -> None:
+        self._guard_local_patient_timer_update()
         self._patient_started_at = time.time()
         self._patient_number = self._safe_number(patient_number)
         self._patient_prefix = self.queue_prefix
@@ -757,30 +777,41 @@ class AppController(QObject):
         ):
             return
 
+        self._guard_local_patient_timer_update()
+
         ended_at = (
             self._patient_paused_at
             if self._patient_paused_at is not None
             else time.time()
         )
-        try:
-            record_patient_visit(
-                doctor_id=self.doctor_id,
-                doctor_name=self.doctor_name,
-                queue_prefix=self._patient_prefix,
-                patient_number=self._patient_number,
-                started_at_epoch=self._patient_started_at,
-                ended_at_epoch=ended_at,
-            )
-        except (OSError, ValueError, TypeError):
-            LOGGER.exception(
-                "Impossibile registrare la durata del paziente %s",
-                self._patient_number,
-            )
+        if self.queue_mode != "surname":
+            try:
+                record_patient_visit(
+                    doctor_id=self.doctor_id,
+                    doctor_name=self.doctor_name,
+                    queue_prefix=self._patient_prefix,
+                    patient_number=self._patient_number,
+                    started_at_epoch=self._patient_started_at,
+                    ended_at_epoch=ended_at,
+                )
+            except (OSError, ValueError, TypeError):
+                LOGGER.exception(
+                    "Impossibile registrare la durata del paziente %s",
+                    self._patient_number,
+                )
 
         self._clear_patient_timer_state(save=True)
         self._sync_patient_timer_state()
         self.patient_timer_changed.emit(
             self.get_current_patient_timer()
+        )
+
+    def _guard_local_patient_timer_update(self) -> None:
+        # Il round-trip di rete è normalmente < 2 s. Una finestra di 4 s
+        # impedisce a uno snapshot precedente del Server di cancellare o
+        # ripristinare subito un timer appena modificato localmente.
+        self._patient_timer_sync_guard_until = (
+            time.monotonic() + 4.0
         )
 
     def _sync_patient_timer_state(self) -> None:
@@ -885,25 +916,44 @@ class AppController(QObject):
             remote_number = self._safe_optional_number(local_state.get("patient_number"))
             remote_prefix = self._clean_queue_prefix(local_state.get("patient_prefix", ""))
             remote_paused_at = self._safe_timestamp(local_state.get("patient_paused_at"))
-            timer_changed = (
-                remote_started_at != self._patient_started_at
-                or remote_number != self._patient_number
-                or remote_prefix != self._patient_prefix
-                or remote_paused_at != self._patient_paused_at
+            remote_timer = (
+                remote_started_at,
+                remote_number,
+                remote_prefix,
+                remote_paused_at,
             )
-            self._patient_started_at = remote_started_at
-            self._patient_number = remote_number
-            self._patient_prefix = remote_prefix
-            self._patient_paused_at = remote_paused_at
-            if self._patient_started_at is None or self._patient_number is None:
-                self._patient_started_at = None
-                self._patient_number = None
-                self._patient_prefix = ""
-                self._patient_paused_at = None
-            self._save_patient_timer_state()
+            local_timer = (
+                self._patient_started_at,
+                self._patient_number,
+                self._patient_prefix,
+                self._patient_paused_at,
+            )
 
-            if timer_changed:
-                self.patient_timer_changed.emit(self.get_current_patient_timer())
+            # Subito dopo un'azione locale sul timer possono arrivare dal
+            # Server snapshot precedenti al DOCTOR_UPDATE appena inviato.
+            # Non devono cancellare/riattivare il timer sul PC della dottoressa.
+            ignore_stale_timer_snapshot = (
+                time.monotonic() < self._patient_timer_sync_guard_until
+                and remote_timer != local_timer
+            )
+
+            if not ignore_stale_timer_snapshot:
+                timer_changed = remote_timer != local_timer
+                self._patient_started_at = remote_started_at
+                self._patient_number = remote_number
+                self._patient_prefix = remote_prefix
+                self._patient_paused_at = remote_paused_at
+                if self._patient_started_at is None or self._patient_number is None:
+                    self._patient_started_at = None
+                    self._patient_number = None
+                    self._patient_prefix = ""
+                    self._patient_paused_at = None
+                self._save_patient_timer_state()
+
+                if timer_changed:
+                    self.patient_timer_changed.emit(
+                        self.get_current_patient_timer()
+                    )
 
         self.state_changed.emit(
             complete_state
