@@ -405,6 +405,17 @@ DISPLAY_HTML = r"""<!doctype html>
             cursor: pointer;
         }
         #audioButton.enabled { background: #167449; }
+
+        #wakePulse {
+            position: fixed;
+            left: 1px;
+            bottom: 1px;
+            width: 2px;
+            height: 2px;
+            opacity: 0.02;
+            pointer-events: none;
+            z-index: 1;
+        }
         @media (max-width: 900px) {
             #cards.one .card { width: 78%; }
             #cards.two .card { width: 49%; }
@@ -435,6 +446,7 @@ DISPLAY_HTML = r"""<!doctype html>
     <footer><span id="technical">Display automatico</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span>Display 1.6.8</span></footer>
 </div>
 <button id="audioButton" type="button">ATTIVA AUDIO</button>
+<div id="wakePulse" aria-hidden="true"></div>
 <audio id="turnSound" preload="auto"><source src="/turn.mp3" type="audio/mpeg"><source src="/turn.wav" type="audio/wav"></audio>
 <script>
 (function () {
@@ -451,6 +463,7 @@ DISPLAY_HTML = r"""<!doctype html>
     var clock = document.getElementById("clock");
     var audioButton = document.getElementById("audioButton");
     var turnSound = document.getElementById("turnSound");
+    var wakePulse = document.getElementById("wakePulse");
 
     var audioEnabled = false;
     var previousTurns = {};
@@ -464,54 +477,116 @@ DISPLAY_HTML = r"""<!doctype html>
 
     var screenWakeLock = null;
     var wakeLockRetryTimer = null;
+    var wakePulseTimer = null;
+    var wakePulseState = false;
+    var wakeLockStatus = "inizializzazione";
+    var wakeLockReleaseCount = 0;
+    var wakeLockLastEvent = "";
+
+    function updateWakeLockDiagnostic() {
+        if (!("wakeLock" in navigator) || !navigator.wakeLock ||
+                typeof navigator.wakeLock.request !== "function") {
+            wakeLockLastEvent = "Wake Lock: NON SUPPORTATO";
+        } else if (screenWakeLock) {
+            wakeLockLastEvent = "Wake Lock: ATTIVO";
+        } else if (wakeLockStatus === "rilasciato") {
+            wakeLockLastEvent = "Wake Lock: RILASCIATO (" + wakeLockReleaseCount + ")";
+        } else if (wakeLockStatus === "errore") {
+            wakeLockLastEvent = "Wake Lock: ERRORE";
+        } else {
+            wakeLockLastEvent = "Wake Lock: IN ATTESA";
+        }
+    }
 
     function requestScreenWakeLock() {
         if (!("wakeLock" in navigator) || !navigator.wakeLock ||
                 typeof navigator.wakeLock.request !== "function") {
+            wakeLockStatus = "non_supportato";
+            screenWakeLock = null;
+            updateWakeLockDiagnostic();
             return;
         }
 
         if (document.visibilityState && document.visibilityState !== "visible") {
+            wakeLockStatus = "pagina_nascosta";
+            updateWakeLockDiagnostic();
+            return;
+        }
+
+        if (screenWakeLock && screenWakeLock.released !== true) {
+            wakeLockStatus = "attivo";
+            updateWakeLockDiagnostic();
             return;
         }
 
         try {
+            wakeLockStatus = "richiesta";
+            updateWakeLockDiagnostic();
             var request = navigator.wakeLock.request("screen");
             if (request && typeof request.then === "function") {
                 request.then(function (lock) {
                     screenWakeLock = lock;
+                    wakeLockStatus = "attivo";
+                    updateWakeLockDiagnostic();
+
+                    function onWakeLockReleased() {
+                        screenWakeLock = null;
+                        wakeLockStatus = "rilasciato";
+                        wakeLockReleaseCount += 1;
+                        updateWakeLockDiagnostic();
+                        window.setTimeout(requestScreenWakeLock, 1500);
+                    }
 
                     if (lock && typeof lock.addEventListener === "function") {
-                        lock.addEventListener("release", function () {
-                            screenWakeLock = null;
-                        });
+                        lock.addEventListener("release", onWakeLockReleased);
                     } else if (lock) {
-                        lock.onrelease = function () {
-                            screenWakeLock = null;
-                        };
+                        lock.onrelease = onWakeLockReleased;
                     }
                 }).catch(function () {
                     screenWakeLock = null;
+                    wakeLockStatus = "errore";
+                    updateWakeLockDiagnostic();
                 });
             }
         } catch (ignore) {
             screenWakeLock = null;
+            wakeLockStatus = "errore";
+            updateWakeLockDiagnostic();
         }
+    }
+
+    function pulseScreenKeepAlive() {
+        if (!wakePulse) {
+            return;
+        }
+
+        wakePulseState = !wakePulseState;
+        wakePulse.style.opacity = wakePulseState ? "0.02" : "0.01";
+        wakePulse.style.transform = wakePulseState
+            ? "translateX(0px)"
+            : "translateX(1px)";
     }
 
     function keepScreenAwake() {
         requestScreenWakeLock();
+        pulseScreenKeepAlive();
 
         if (wakeLockRetryTimer) {
             window.clearInterval(wakeLockRetryTimer);
         }
 
-        /* Alcune Smart TV rilasciano il lock dopo cambi di pagina/stato
-           energetico. Riproviamo periodicamente senza interferire con TV
-           che non supportano la Screen Wake Lock API. */
+        if (wakePulseTimer) {
+            window.clearInterval(wakePulseTimer);
+        }
+
         wakeLockRetryTimer = window.setInterval(
             requestScreenWakeLock,
-            30000
+            15000
+        );
+
+        wakePulseTimer = window.setInterval(
+            pulseScreenKeepAlive,
+            10000
         );
     }
 
@@ -861,7 +936,9 @@ DISPLAY_HTML = r"""<!doctype html>
         }
 
         serverLabel = payload.server_address || payload.local_address || "locale";
-        technical.innerHTML = "Connesso al server " + escapeHtml(serverLabel);
+        updateWakeLockDiagnostic();
+        technical.innerHTML = "Connesso al server " + escapeHtml(serverLabel) +
+            " · " + escapeHtml(wakeLockLastEvent);
         disconnectedVisible = false;
     }
 
@@ -875,7 +952,9 @@ DISPLAY_HTML = r"""<!doctype html>
         content.className = "connection";
         content.innerHTML = "<h1>Connessione in corso</h1>" +
             "<p>Il server sta cambiando oppure non è raggiungibile. Riprovo automaticamente…</p>";
-        technical.innerHTML = "Ricerca automatica del server";
+        updateWakeLockDiagnostic();
+        technical.innerHTML = "Ricerca automatica del server · " +
+            escapeHtml(wakeLockLastEvent);
     }
 
     function poll() {
@@ -921,6 +1000,10 @@ DISPLAY_HTML = r"""<!doctype html>
         document.addEventListener("visibilitychange", function () {
             if (!document.visibilityState || document.visibilityState === "visible") {
                 requestScreenWakeLock();
+                pulseScreenKeepAlive();
+            } else {
+                wakeLockStatus = "pagina_nascosta";
+                updateWakeLockDiagnostic();
             }
         });
 
