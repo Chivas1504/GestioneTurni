@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 
 PROJECT_ROOT = Path(SPECPATH)
@@ -23,6 +24,16 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Qt 6 on Windows uses the operating system's ICU implementation. An unrelated
+# ICU (e.g. from Poppler/Conda on PATH) exports version-suffixed symbols and makes
+# QtCore fail at startup when PyInstaller accidentally bundles it.
+if sys.platform == "win32":
+    a.binaries = [
+        entry for entry in a.binaries
+        if Path(entry[0]).name.lower() not in {"icuuc.dll", "icuin.dll"}
+        and not Path(entry[0]).name.lower().startswith("icudt")
+    ]
 
 pyz = PYZ(a.pure)
 

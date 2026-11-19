@@ -94,7 +94,11 @@ class LoginAccountDialog(QDialog):
 
     def _accept_login(self):
         doctor_id = str(self.account_combo.currentData() or "")
-        account = self.authenticate(doctor_id, self.password.text())
+        try:
+            account = self.authenticate(doctor_id, self.password.text())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Accesso non riuscito", str(exc))
+            return
         if account is None:
             QMessageBox.warning(self, "Accesso negato", "Password non corretta.")
             self.password.selectAll(); self.password.setFocus(); return

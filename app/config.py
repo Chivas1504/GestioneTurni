@@ -1,4 +1,7 @@
 import json
+import os
+import time
+import uuid
 from typing import Any
 
 
@@ -23,6 +26,7 @@ DEFAULT_CONFIG = {
     "patient_time_warning_minutes": 15,
     "patient_time_warning_sound_enabled": False,
     "patient_started_at": None,
+    "patient_paused_at": None,
     "patient_number": None,
     "patient_prefix": "",
 }
@@ -136,6 +140,7 @@ def load_config() -> dict[str, Any]:
                 data.get("patient_time_warning_sound_enabled", False)
             ),
             "patient_started_at": data.get("patient_started_at"),
+            "patient_paused_at": data.get("patient_paused_at"),
             "patient_number": data.get("patient_number"),
             "patient_prefix": _clean_queue_prefix(data.get("patient_prefix", "")),
         }
@@ -226,28 +231,34 @@ def save_config(
             config.get("patient_time_warning_sound_enabled", False)
         ),
         "patient_started_at": config.get("patient_started_at"),
+        "patient_paused_at": config.get("patient_paused_at"),
         "patient_number": config.get("patient_number"),
         "patient_prefix": _clean_queue_prefix(config.get("patient_prefix", "")),
     }
 
     config_file = get_config_file()
 
-    temporary_file = config_file.with_suffix(
-        ".json.tmp"
-    )
-
-    with temporary_file.open(
-        "w",
-        encoding="utf-8",
-    ) as file:
-        json.dump(
-            safe_config,
-            file,
-            ensure_ascii=False,
-            indent=4,
-        )
-
-    temporary_file.replace(config_file)
+    temporary_file = config_file.with_name(f"{config_file.stem}_{uuid.uuid4().hex}.tmp")
+    try:
+        with temporary_file.open("w", encoding="utf-8") as file:
+            json.dump(safe_config, file, ensure_ascii=False, indent=4)
+            file.flush()
+            os.fsync(file.fileno())
+        # Antivirus and synchronisation software can briefly lock the existing
+        # file. A transient lock must not interrupt starting/pausing a timer.
+        for attempt in range(20):
+            try:
+                temporary_file.replace(config_file)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.1)
+    finally:
+        try:
+            temporary_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _clean_queue_prefix(value: object) -> str:

@@ -5,7 +5,7 @@ import time
 
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal, QTimer
+from PySide6.QtCore import QObject, Signal, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from app.config import load_config, save_config
@@ -165,7 +165,8 @@ class AppController(QObject):
         )
 
         self.network_manager.message_received.connect(
-            self.sync_manager.handle_network_message
+            self.sync_manager.handle_network_message,
+            Qt.ConnectionType.BlockingQueuedConnection,
         )
         self.network_manager.account_records_received.connect(
             self._on_account_records_received
@@ -585,12 +586,6 @@ class AppController(QObject):
             and safe_number == old_number + 1
         )
 
-        if self.queue_active and valid_increment:
-            self._finish_current_patient()
-
-        if clean_action == "reset":
-            self._finish_current_patient()
-
         LOGGER.info(
             "Aggiornamento numero %s: %s (%s)",
             self.doctor_id,
@@ -598,9 +593,17 @@ class AppController(QObject):
             clean_action,
         )
 
-        turns = load_turns()
-        turns[self.doctor_id] = safe_number
-        save_turns(turns)
+        try:
+            turns = load_turns()
+            turns[self.doctor_id] = safe_number
+            save_turns(turns)
+        except OSError as exc:
+            LOGGER.exception("Numero non salvato")
+            QMessageBox.warning(None, "Numero non modificato", str(exc))
+            return
+
+        if (self.queue_active and valid_increment) or clean_action == "reset":
+            self._finish_current_patient()
 
         self.shared_state.update_local(
             number=safe_number
@@ -632,7 +635,9 @@ class AppController(QObject):
 
     def set_surname(self, surname: str) -> None:
         clean_surname = self._clean_surname(surname)
-        if clean_surname == self.current_surname:
+        if clean_surname == self.current_surname and not (
+            self.queue_mode == "surname" and self.queue_active and clean_surname
+        ):
             return
 
         LOGGER.info(
@@ -711,6 +716,9 @@ class AppController(QObject):
         self.shared_state.update_local(
             queue_active=self.queue_active
         )
+
+        if self.queue_active and self.queue_mode == "number":
+            self._start_patient_timer(current_number)
 
         if self.history_window is not None:
             self.history_window.refresh_history()
@@ -903,9 +911,15 @@ class AppController(QObject):
             self.current_surname = self._clean_surname(
                 local_state.get("current_surname", self.current_surname)
             )
-            turns = load_turns()
-            turns[self.doctor_id] = self._safe_number(local_state.get("number", 0))
-            save_turns(turns)
+            try:
+                turns = load_turns()
+                next_number = self._safe_number(local_state.get("number", 0))
+                if turns.get(self.doctor_id) != next_number:
+                    turns[self.doctor_id] = next_number
+                    save_turns(turns)
+            except OSError:
+                LOGGER.exception("Stato ricevuto ma impossibile salvare il numero")
+                self.sync_status_changed.emit("Errore di salvataggio: controllare il file dei turni.")
             self.config["queue_active"] = self.queue_active
             self.config["doctor_name"] = self.doctor_name
             self.config["queue_prefix"] = self.queue_prefix

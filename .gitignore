@@ -22,3 +22,12 @@ Thumbs.db
 data/
 *.csv
 Installer/
+.tools/
+android-tv/.gradle/
+android-tv/.gradle-user/
+android-tv/local.properties
+android-tv/*.keystore
+android-tv/signing.properties
+android-tv/private-signing/
+android-tv/output/
+*.key

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import shutil
@@ -21,7 +22,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 # GESTIONE TURNI - AGGIORNAMENTI
 # =========================================================
 
-CURRENT_VERSION = "1.9.8"
+from app.version import APP_VERSION
+
+CURRENT_VERSION = APP_VERSION
 
 GITHUB_OWNER = "Chivas1504"
 GITHUB_REPO = "GestioneTurni"
@@ -65,6 +68,19 @@ def is_newer_version(candidate: str, current: str) -> bool:
     current_tuple += (0,) * (size - len(current_tuple))
 
     return candidate_tuple > current_tuple
+
+
+def verify_installer(path: Path, expected_size: int, digest: str) -> None:
+    if expected_size and path.stat().st_size != expected_size:
+        raise IOError("Dimensione installer diversa da quella della release.")
+    if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest):
+        raise IOError("La release non fornisce un checksum SHA-256 verificabile.")
+    actual = hashlib.sha256()
+    with path.open("rb") as check_file:
+        for chunk in iter(lambda: check_file.read(1024 * 1024), b""):
+            actual.update(chunk)
+    if actual.hexdigest().lower() != digest[7:].lower():
+        raise IOError("Verifica SHA-256 fallita. Installer non avviato.")
 
 
 class UpdateChecker(QObject):
@@ -201,6 +217,7 @@ class UpdateChecker(QObject):
                     "size": int(
                         asset.get("size", 0) or 0
                     ),
+                    "digest": str(asset.get("digest") or ""),
                 }
 
                 break
@@ -462,6 +479,9 @@ class UpdateChecker(QObject):
                             "L'installer scaricato "
                             "è vuoto."
                         )
+
+                    verify_installer(destination, int(installer.get("size", 0) or 0),
+                                     str(installer.get("digest") or ""))
 
                     self.download_progress.emit(
                         100

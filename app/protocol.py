@@ -51,7 +51,8 @@ def validate_message(message: object) -> bool:
     return bool(
         isinstance(message, dict)
         and message.get("protocol") == PROTOCOL_NAME
-        and int(message.get("version", 0) or 0) == PROTOCOL_VERSION
+        and type(message.get("version")) is int
+        and message.get("version") == PROTOCOL_VERSION
         and isinstance(message.get("type"), str)
         and isinstance(message.get("payload"), dict)
     )

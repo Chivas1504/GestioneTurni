@@ -8,11 +8,14 @@ import math
 import socket
 import struct
 import threading
+import time
+from datetime import datetime
 import wave
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
+from app.version import APP_VERSION
 
 
 LOGGER = logging.getLogger(__name__)
@@ -152,7 +155,7 @@ class WebDisplayServer:
                 path = urlparse(self.path).path
 
                 if path in {"/", "/index.html"}:
-                    self._send_html(DISPLAY_HTML)
+                    self._send_html(DISPLAY_HTML.replace("__APP_VERSION__", APP_VERSION))
                     return
 
                 if path == "/api/state":
@@ -290,6 +293,8 @@ class WebDisplayServer:
             "server_address": server_address,
             "web_port": self.port,
             "candidates": candidates,
+            "server_epoch_ms": int(time.time() * 1000),
+            "utc_offset_minutes": int(datetime.now().astimezone().utcoffset().total_seconds() / 60),
             "state": self._state_provider(),
         }
 
@@ -443,7 +448,7 @@ DISPLAY_HTML = r"""<!doctype html>
         <h1>Connessione in corso</h1>
         <p>Ricerca del computer che gestisce i turni…</p>
     </main>
-    <footer><span id="technical">Display automatico</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span>Display 1.6.8</span></footer>
+    <footer><span id="technical">Display automatico</span>&nbsp;&nbsp;·&nbsp;&nbsp;<span>Display __APP_VERSION__</span></footer>
 </div>
 <button id="audioButton" type="button">ATTIVA AUDIO</button>
 <div id="wakePulse" aria-hidden="true"></div>
@@ -474,6 +479,10 @@ DISPLAY_HTML = r"""<!doctype html>
     var polling = false;
     var lastSuccessfulConnection = 0;
     var disconnectedVisible = false;
+    var lastRenderedHtml = null;
+    var serverTimeOffset = 0;
+    var serverUtcOffset = null;
+    var nativeTvApp = /GestioneTurniTV\//.test(navigator.userAgent || "");
 
     var screenWakeLock = null;
     var wakeLockRetryTimer = null;
@@ -484,6 +493,10 @@ DISPLAY_HTML = r"""<!doctype html>
     var wakeLockLastEvent = "";
 
     function updateWakeLockDiagnostic() {
+        if (nativeTvApp) {
+            wakeLockLastEvent = "App Android TV · protezione schermo nativa";
+            return;
+        }
         if (!("wakeLock" in navigator) || !navigator.wakeLock ||
                 typeof navigator.wakeLock.request !== "function") {
             wakeLockLastEvent = "Wake Lock: NON SUPPORTATO";
@@ -499,6 +512,7 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     function requestScreenWakeLock() {
+        if (nativeTvApp) { return; }
         if (!("wakeLock" in navigator) || !navigator.wakeLock ||
                 typeof navigator.wakeLock.request !== "function") {
             wakeLockStatus = "non_supportato";
@@ -842,14 +856,20 @@ DISPLAY_HTML = r"""<!doctype html>
         audioButton.className = "enabled";
         audioButton.innerHTML = "AUDIO ATTIVO";
 
-        /* Il click dell'utente sblocca l'audio. MP3 e' il formato
-           principale per compatibilita con browser Smart TV datati. */
+        /* Il click dell'utente sblocca l'audio nei browser normali. */
         try {
             turnSound.volume = 1.0;
             turnSound.load();
             turnSound.currentTime = 0;
-            turnSound.play();
+            var playback = turnSound.play();
+            if (playback && playback.catch) { playback.catch(audioPlaybackFailed); }
         } catch (ignore) {}
+    }
+
+    function audioPlaybackFailed() {
+        audioEnabled = false;
+        audioButton.className = "";
+        audioButton.innerHTML = "ATTIVA AUDIO";
     }
 
     function playTurnSound() {
@@ -861,7 +881,8 @@ DISPLAY_HTML = r"""<!doctype html>
             turnSound.volume = 1.0;
             turnSound.pause();
             turnSound.currentTime = 0;
-            turnSound.play();
+            var playback = turnSound.play();
+            if (playback && playback.catch) { playback.catch(audioPlaybackFailed); }
         } catch (ignore) {}
     }
 
@@ -895,6 +916,11 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     function render(payload) {
+        if (typeof payload.server_epoch_ms === "number") {
+            serverTimeOffset = payload.server_epoch_ms - new Date().getTime();
+            serverUtcOffset = payload.utc_offset_minutes;
+            updateClock();
+        }
         var state = payload && payload.state ? payload.state : {};
         var activeDoctors = [];
         var html = "";
@@ -913,7 +939,7 @@ DISPLAY_HTML = r"""<!doctype html>
         if (!activeDoctors.length) {
             content.id = "content";
             content.className = "empty";
-            content.innerHTML = "<h1>In attesa</h1>" +
+            html = "<h1>In attesa</h1>" +
                 "<p>Premendo Inizia coda sul PC, il display comparirà automaticamente.</p>";
         } else {
             content.id = "cards";
@@ -932,7 +958,11 @@ DISPLAY_HTML = r"""<!doctype html>
                 }
                 html += "</table>";
             }
+        }
+
+        if (lastRenderedHtml !== html) {
             content.innerHTML = html;
+            lastRenderedHtml = html;
         }
 
         serverLabel = payload.server_address || payload.local_address || "locale";
@@ -948,6 +978,7 @@ DISPLAY_HTML = r"""<!doctype html>
         }
 
         disconnectedVisible = true;
+        lastRenderedHtml = null;
         content.id = "content";
         content.className = "connection";
         content.innerHTML = "<h1>Connessione in corso</h1>" +
@@ -958,6 +989,9 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     function poll() {
+        if (lastSuccessfulConnection && new Date().getTime() - lastSuccessfulConnection >= DISCONNECTED_AFTER_MS) {
+            renderDisconnected();
+        }
         if (polling) {
             return;
         }
@@ -987,8 +1021,11 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     function updateClock() {
-        var now = new Date();
-        clock.innerHTML = twoDigits(now.getHours()) + ":" + twoDigits(now.getMinutes());
+        var now = new Date(new Date().getTime() + serverTimeOffset + (serverUtcOffset === null ? 0 : serverUtcOffset * 60000));
+        var value = serverUtcOffset === null
+            ? twoDigits(now.getHours()) + ":" + twoDigits(now.getMinutes())
+            : twoDigits(now.getUTCHours()) + ":" + twoDigits(now.getUTCMinutes());
+        if (clock.innerHTML !== value) { clock.innerHTML = value; }
     }
 
     audioButton.onclick = function () {
@@ -1013,6 +1050,11 @@ DISPLAY_HTML = r"""<!doctype html>
     }
 
     keepScreenAwake();
+    if (nativeTvApp) {
+        audioEnabled = true;
+        audioButton.className = "enabled";
+        audioButton.innerHTML = "AUDIO ATTIVO";
+    }
 
     updateClock();
     window.setInterval(updateClock, 1000);

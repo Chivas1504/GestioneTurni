@@ -307,6 +307,8 @@ class AccountStore:
                         )
                     )
 
+                if incoming == current:
+                    continue
                 self._accounts[doctor_id] = incoming
                 changed = True
 

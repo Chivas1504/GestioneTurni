@@ -1,8 +1,11 @@
 #define MyAppName "Gestione Turni"
-#define MyAppVersion "1.9.8"
+#define MyAppVersion "1.10.2"
 #define MyAppPublisher "Mattia Franco"
 #define MyAppExeName "GestioneTurni.exe"
 #define MyAppIconName "gestione_turni.ico"
+#ifndef MySourceDir
+  #define MySourceDir "dist\GestioneTurni"
+#endif
 
 [Setup]
 AppId={{A1E46B51-9E1E-4F72-8F88-3C9F6A1B2D91}
@@ -11,7 +14,7 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 
-VersionInfoVersion=1.9.8.0
+VersionInfoVersion=1.10.2.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=Installer di Gestione Turni
 VersionInfoProductName={#MyAppName}
@@ -21,7 +24,7 @@ DefaultDirName={autopf}\Gestione Turni
 DefaultGroupName=Gestione Turni
 
 OutputDir=Installer
-OutputBaseFilename=Setup_GestioneTurni_v1.9.8
+OutputBaseFilename=Setup_GestioneTurni_v1.10.2
 
 Compression=lzma2
 SolidCompression=yes
@@ -52,7 +55,7 @@ Name: "desktopicon"; \
     GroupDescription: "Collegamenti:"
 
 [Files]
-Source: "dist\GestioneTurni\*"; \
+Source: "{#MySourceDir}\*"; \
     DestDir: "{app}"; \
     Flags: recursesubdirs createallsubdirs ignoreversion
 

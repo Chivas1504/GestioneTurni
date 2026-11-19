@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import json
 import random
+import secrets
+import logging
+from collections import OrderedDict
 import socket
 import threading
 import time
 from typing import Any
 
 from PySide6.QtCore import QObject, Signal
+from app.network.transport import client_exchange, receive_json, send_json
+
+LOGGER = logging.getLogger(__name__)
 
 
 DISCOVERY_PORT = 50555
@@ -63,6 +69,7 @@ class NetworkManager(QObject):
         self._peer_addresses: set[str] = set()
         self._latest_complete_state: dict[str, Any] | None = None
         self._account_store = None
+        self._seen_messages: OrderedDict[str, None] = OrderedDict()
 
     def set_account_store(self, account_store: object) -> None:
         self._account_store = account_store
@@ -134,6 +141,7 @@ class NetworkManager(QObject):
             return
 
         safe_message = dict(message)
+        safe_message.setdefault("delivery_id", secrets.token_hex(16))
 
         if safe_message.get("type") == "complete_state" and self.role == "server":
             with self._outbox_lock:
@@ -290,9 +298,7 @@ class NetworkManager(QObject):
             except OSError:
                 break
 
-            request = self._decode_message(
-                raw_request
-            )
+            request = self._decode_message(raw_request)
 
             if (
                 request.get("type")
@@ -305,13 +311,12 @@ class NetworkManager(QObject):
                 "doctor_id": self.doctor_id,
                 "server_ip": self._get_local_ip(),
                 "heartbeat_port": HEARTBEAT_PORT,
+                "nonce": request.get("nonce"),
             }
 
             try:
                 discovery_socket.sendto(
-                    json.dumps(response).encode(
-                        "utf-8"
-                    ),
+                    json.dumps(response).encode("utf-8"),
                     sender,
                 )
 
@@ -338,34 +343,29 @@ class NetworkManager(QObject):
             except OSError:
                 break
 
-            peer_address = str(sender[0]).strip()
-            if peer_address and peer_address != "127.0.0.1":
-                with self._state_lock:
-                    self._peer_addresses.add(peer_address)
-
             with connection:
                 connection.settimeout(
                     HEARTBEAT_TIMEOUT_SECONDS
                 )
 
                 try:
-                    raw_request = (
-                        connection.recv(65536)
-                    )
-
-                except OSError:
+                    request = receive_json(connection)
+                except (OSError, ValueError):
                     continue
 
-                request = self._decode_message(
-                    raw_request
-                )
+                peer_address = str(sender[0]).strip()
+                if peer_address and peer_address != "127.0.0.1":
+                    with self._state_lock:
+                        self._peer_addresses.add(peer_address)
 
                 request_type = request.get("type")
+                if not isinstance(request_type, str):
+                    continue
                 if request_type in {"GESTIONE_TURNI_ACCOUNTS_LIST", "GESTIONE_TURNI_ACCOUNT_AUTH", "GESTIONE_TURNI_ACCOUNT_CREATE", "GESTIONE_TURNI_ACCOUNT_DELETE"}:
                     response = self._handle_account_rpc(request)
                     try:
-                        connection.sendall(json.dumps(response).encode("utf-8"))
-                    except OSError:
+                        send_json(connection, response)
+                    except (OSError, ValueError):
                         pass
                     continue
 
@@ -381,14 +381,27 @@ class NetworkManager(QObject):
                     incoming_messages,
                     list,
                 ):
-                    for message in incoming_messages:
+                    for message in incoming_messages[:1000]:
                         if not isinstance(message, dict):
                             continue
+                        delivery_id = message.get("delivery_id")
+                        if delivery_id is not None and (not isinstance(delivery_id, str) or len(delivery_id) != 32):
+                            continue
+                        if delivery_id in self._seen_messages:
+                            continue
+                        if message.get("type") == "complete_state":
+                            continue
+                        if message.get("type") == "doctor_update":
+                            doctor = message.get("payload", {}).get("doctor", {}) if isinstance(message.get("payload"), dict) else {}
+                            if not isinstance(doctor, dict) or doctor.get("doctor_id") != request.get("doctor_id"):
+                                continue
                         if message.get("type") == "__account_record":
                             store = self._account_store
                             if store is not None and hasattr(store, "merge_records"):
                                 record = message.get("record")
-                                if isinstance(record, dict):
+                                if (isinstance(record, dict)
+                                        and record.get("doctor_id") == request.get("doctor_id")
+                                        and not record.get("deleted")):
                                     server_record = dict(record)
                                     server_record["updated_at"] = time.time()
                                     try:
@@ -403,8 +416,10 @@ class NetworkManager(QObject):
                                     self.account_records_received.emit(
                                         [server_record]
                                     )
+                                    self._remember_delivery(delivery_id)
                             continue
                         self.message_received.emit(message)
+                        self._remember_delivery(delivery_id)
 
                 with self._outbox_lock:
                     latest = dict(self._latest_complete_state) if self._latest_complete_state else None
@@ -420,13 +435,8 @@ class NetworkManager(QObject):
                 }
 
                 try:
-                    connection.sendall(
-                        json.dumps(response).encode(
-                            "utf-8"
-                        )
-                    )
-
-                except OSError:
+                    send_json(connection, response)
+                except (OSError, ValueError):
                     continue
 
     def _handle_account_rpc(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -454,13 +464,21 @@ class NetworkManager(QObject):
                     "ok": True,
                     "record": record,
                 }
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             return {"type": request_type + "_RESPONSE", "ok": False, "error": str(exc)}
         return {"type": request_type + "_RESPONSE", "ok": False}
 
+    def _remember_delivery(self, delivery_id: str | None) -> None:
+        if delivery_id is None:
+            return
+        self._seen_messages[delivery_id] = None
+        while len(self._seen_messages) > 10000:
+            self._seen_messages.popitem(last=False)
+
     @classmethod
     def discover_server_once(cls) -> str | None:
-        request = {"type": DISCOVERY_MESSAGE, "doctor_id": "launcher"}
+        nonce = secrets.token_hex(16)
+        request = {"type": DISCOVERY_MESSAGE, "doctor_id": "launcher", "nonce": nonce}
         encoded = json.dumps(request).encode("utf-8")
         candidates: set[str] = set()
 
@@ -486,7 +504,7 @@ class NetworkManager(QObject):
                         break
 
                     response = cls._decode_message(raw)
-                    if response.get("type") != DISCOVERY_RESPONSE:
+                    if response.get("type") != DISCOVERY_RESPONSE or response.get("nonce", nonce) != nonce:
                         continue
 
                     if sender[0] == "127.0.0.1":
@@ -511,9 +529,8 @@ class NetworkManager(QObject):
         try:
             with socket.create_connection((address, HEARTBEAT_PORT), timeout=1.5) as connection:
                 connection.settimeout(1.5)
-                connection.sendall(json.dumps(request).encode("utf-8"))
-                return cls._decode_message(connection.recv(65536))
-        except OSError:
+                return client_exchange(connection, request)
+        except (OSError, ValueError):
             return None
 
     def _discover_server(
@@ -522,9 +539,11 @@ class NetworkManager(QObject):
         exclude_addresses: set[str] | None = None,
         include_loopback: bool = True,
     ) -> str | None:
+        nonce = secrets.token_hex(16)
         request = {
             "type": DISCOVERY_MESSAGE,
             "doctor_id": self.doctor_id,
+            "nonce": nonce,
         }
         encoded_request = json.dumps(request).encode("utf-8")
         excluded = {str(value).strip() for value in (exclude_addresses or set()) if str(value).strip()}
@@ -562,7 +581,7 @@ class NetworkManager(QObject):
                         return None
 
                     response = self._decode_message(raw_response)
-                    if response.get("type") != DISCOVERY_RESPONSE:
+                    if response.get("type") != DISCOVERY_RESPONSE or response.get("nonce", nonce) != nonce:
                         continue
 
                     if sender[0] == "127.0.0.1":
@@ -752,54 +771,21 @@ class NetworkManager(QObject):
                     HEARTBEAT_TIMEOUT_SECONDS
                 )
 
-                connection.sendall(
-                    json.dumps(request).encode(
-                        "utf-8"
-                    )
-                )
-
-                raw_response = (
-                    connection.recv(65536)
-                )
-
-                response = (
-                    self._decode_message(
-                        raw_response
-                    )
-                )
-
-                if (
-                    response.get("type")
-                    != HEARTBEAT_RESPONSE
-                ):
-                    return None
-
+                response = client_exchange(connection, request)
+                if response.get("type") != HEARTBEAT_RESPONSE:
+                    raise ValueError("Risposta heartbeat non valida.")
                 return response
-
-        except OSError:
-
-
-            outgoing_messages = request.get(
-                "messages",
-                [],
-            )
-
-            if isinstance(
-                outgoing_messages,
-                list,
-            ):
-                self._restore_outbox_messages(
-                    outgoing_messages
-                )
-
+        except (OSError, ValueError):
+            # Restore for every failed exchange, including malformed replies.
+            self._restore_outbox_messages(request["messages"])
             return None
 
     def _take_outbox_messages(
         self,
     ) -> list[dict[str, Any]]:
         with self._outbox_lock:
-            messages = list(self._outbox)
-            self._outbox.clear()
+            messages = self._outbox[:1000]
+            del self._outbox[:1000]
 
         return messages
 
@@ -877,6 +863,7 @@ class NetworkManager(QObject):
         except (
             UnicodeDecodeError,
             json.JSONDecodeError,
+            RecursionError,
         ):
             pass
 

@@ -3,7 +3,7 @@ import logging
 import sys
 from PySide6.QtCore import QTimer
 
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from app.account_dialog import AccountEntryDialog
 from app.accounts import AccountStore
@@ -71,6 +71,9 @@ def select_account(store: AccountStore) -> dict | None:
                 account = dict(response["account"])
                 store.import_record(account)
                 return account
+            if response is not None:
+                return None
+            raise ValueError("Server non raggiungibile. Riprova prima di accedere.")
         return store.verify(doctor_id, password)
 
     def create_account(name: str, password: str):
@@ -86,6 +89,7 @@ def select_account(store: AccountStore) -> dict | None:
                 return account
             if response and response.get("error"):
                 raise ValueError(str(response["error"]))
+            raise ValueError("Server non raggiungibile. Account non creato: riprova.")
         return store.create(name, password)
 
     dialog = AccountEntryDialog(list(accounts_by_id.values()), authenticate, create_account)
@@ -104,6 +108,7 @@ def prepare_account_config(account: dict) -> None:
         "doctor_id": doctor_id,
         "doctor_name": str(account.get("doctor_name", "")).strip(),
         "queue_prefix": str(account.get("queue_prefix", config.get("queue_prefix", ""))).strip().upper()[:1],
+        "queue_mode": str(account.get("queue_mode", config.get("queue_mode", "number"))),
         "password_salt": str(account.get("password_salt", "")),
         "password_hash": str(account.get("password_hash", "")),
         "password_iterations": int(account.get("password_iterations", 390000) or 390000),
@@ -133,7 +138,12 @@ def main() -> None:
         sys.exit(0)
 
     prepare_account_config(account)
-    controller = AppController(account_store=account_store)
+    try:
+        controller = AppController(account_store=account_store)
+    except (OSError, ValueError) as exc:
+        logging.exception("Impossibile caricare i dati della coda")
+        QMessageBox.critical(None, "Dati non caricati", str(exc))
+        sys.exit(1)
     window = MainWindow(controller)
     window.show()
     controller.start()

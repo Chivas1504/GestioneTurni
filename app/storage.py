@@ -64,7 +64,10 @@ def load_turns() -> dict[str, int]:
         TypeError,
         json.JSONDecodeError,
     ):
-        return _default_turns()
+        raise OSError(
+            "Impossibile leggere i turni salvati. La coda non è stata azzerata. "
+            "Controlla il file dei turni e riprova."
+        )
 
 
 def save_turns(
