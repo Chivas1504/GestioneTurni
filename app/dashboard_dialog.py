@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -115,7 +117,7 @@ class DashboardDialog(QDialog):
         )
 
         self.setWindowTitle(
-            "Dashboard personale"
+            "Statistiche"
         )
         # La dashboard deve restare utilizzabile anche su schermi con
         # risoluzione ridotta o ridimensionamento Windows elevato.
@@ -145,13 +147,13 @@ class DashboardDialog(QDialog):
 
     def _build_interface(self) -> None:
         title_label = QLabel(
-            "DASHBOARD PERSONALE"
+            "Statistiche"
         )
         title_label.setObjectName(
             "dashboardTitle"
         )
         title_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         self.doctor_label = QLabel(
@@ -161,7 +163,7 @@ class DashboardDialog(QDialog):
             "dashboardDoctor"
         )
         self.doctor_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         self.queue_status_label = QLabel()
@@ -169,7 +171,7 @@ class DashboardDialog(QDialog):
             "dashboardQueueStatus"
         )
         self.queue_status_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         today_section = QLabel(
@@ -209,33 +211,12 @@ class DashboardDialog(QDialog):
         today_grid.setHorizontalSpacing(16)
         today_grid.setVerticalSpacing(16)
 
-        today_grid.addWidget(
-            self.current_number_card,
-            0,
-            0,
-        )
-        today_grid.addWidget(
-            self.today_patients_card,
-            0,
-            1,
-        )
-        today_grid.addWidget(
-            self.today_duration_card,
-            0,
-            2,
-        )
-        today_grid.addWidget(
-            self.today_rate_card,
-            0,
-            3,
-        )
-        today_grid.addWidget(
-            self.today_patient_time_card,
-            1,
-            0,
-            1,
-            2,
-        )
+        for column, card in enumerate((self.today_patients_card, self.today_patient_time_card, self.today_duration_card)):
+            card.setProperty("prominence", "primary")
+            today_grid.addWidget(card, 0, column)
+        for column, card in enumerate((self.current_number_card, self.today_rate_card)):
+            card.setProperty("prominence", "secondary")
+            today_grid.addWidget(card, 1, column)
 
         month_section = QLabel(
             "QUESTO MESE"
@@ -268,26 +249,9 @@ class DashboardDialog(QDialog):
         month_grid.setHorizontalSpacing(16)
         month_grid.setVerticalSpacing(16)
 
-        month_grid.addWidget(
-            self.month_patients_card,
-            0,
-            0,
-        )
-        month_grid.addWidget(
-            self.month_average_card,
-            0,
-            1,
-        )
-        month_grid.addWidget(
-            self.month_days_card,
-            0,
-            2,
-        )
-        month_grid.addWidget(
-            self.best_day_card,
-            0,
-            3,
-        )
+        for index, card in enumerate((self.month_patients_card, self.month_average_card, self.month_days_card, self.best_day_card)):
+            card.setProperty("prominence", "secondary")
+            month_grid.addWidget(card, index // 2, index % 2)
 
         last_session_section = QLabel(
             "ULTIMA SESSIONE"
@@ -408,10 +372,10 @@ class DashboardDialog(QDialog):
             content_widget
         )
         content_layout.setContentsMargins(
-            30,
-            24,
-            30,
-            18,
+            32,
+            28,
+            32,
+            22,
         )
         content_layout.setSpacing(15)
 
@@ -824,130 +788,7 @@ class DashboardDialog(QDialog):
         self.refresh_dashboard()
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QScrollArea#dashboardScrollArea,
-            QScrollArea#dashboardScrollArea > QWidget > QWidget,
-            QWidget#dashboardScrollContent {
-                background-color: #eef3f8;
-                border: none;
-            }
-
-            QWidget#dashboardFooter {
-                background-color: #eef3f8;
-                border-top: 1px solid #d6e1ea;
-            }
-
-            QLabel#dashboardTitle {
-                color: #16324a;
-                font-size: 30px;
-                font-weight: 900;
-                letter-spacing: 2px;
-            }
-
-            QLabel#dashboardDoctor {
-                color: #2c6088;
-                font-size: 21px;
-                font-weight: 800;
-            }
-
-            QLabel#dashboardQueueStatus {
-                color: #7b8b98;
-                font-size: 16px;
-                font-weight: 800;
-            }
-
-            QLabel#dashboardQueueStatus[active="true"] {
-                color: #218b5d;
-            }
-
-            QLabel#dashboardSection {
-                color: #2c6088;
-                font-size: 14px;
-                font-weight: 900;
-                letter-spacing: 2px;
-            }
-
-            QFrame#dashboardCard,
-            QFrame#dashboardAccentCard {
-                background-color: white;
-                border: 1px solid #d6e1ea;
-                border-radius: 18px;
-                min-height: 145px;
-            }
-
-            QFrame#dashboardAccentCard {
-                border-top: 7px solid #218b5d;
-            }
-
-            QLabel#dashboardCardTitle {
-                color: #60758a;
-                font-size: 14px;
-                font-weight: 800;
-            }
-
-            QLabel#dashboardCardValue {
-                color: #16324a;
-                font-size: 32px;
-                font-weight: 900;
-            }
-
-            QLabel#dashboardCardSubtitle {
-                color: #7b8b98;
-                font-size: 13px;
-                font-weight: 600;
-            }
-
-            QFrame#dashboardLastSession {
-                background-color: white;
-                border: 1px solid #d6e1ea;
-                border-radius: 16px;
-            }
-
-            QLabel#dashboardLastDate {
-                color: #16324a;
-                font-size: 20px;
-                font-weight: 900;
-            }
-
-            QLabel#dashboardLastDetail {
-                color: #526b7d;
-                font-size: 15px;
-                font-weight: 600;
-            }
-
-            QPushButton {
-                border: none;
-                border-radius: 11px;
-                padding: 10px 20px;
-                font-size: 15px;
-                font-weight: 700;
-                min-height: 28px;
-            }
-
-            QPushButton#dashboardPrimaryButton {
-                background-color: #218b5d;
-                color: white;
-            }
-
-            QPushButton#dashboardPrimaryButton:hover {
-                background-color: #19794f;
-            }
-
-            QPushButton#dashboardSecondaryButton {
-                background-color: #dfe7ee;
-                color: #334b5d;
-            }
-
-            QPushButton#dashboardSecondaryButton:hover {
-                background-color: #d2dde6;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)
 
     @staticmethod
     def _safe_int(

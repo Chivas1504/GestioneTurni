@@ -33,6 +33,6 @@ $apk = Join-Path $PSScriptRoot "app/build/outputs/apk/$variant/app-$variant.apk"
 if (-not (Test-Path -LiteralPath $apk)) { throw "APK non trovato dopo la compilazione." }
 $output = Join-Path $PSScriptRoot "output"
 New-Item -ItemType Directory -Force -Path $output | Out-Null
-$destination = Join-Path $output "GestioneTurniTV-1.0.0-$variant.apk"
+$destination = Join-Path $output "GestioneTurniTV-1.1.0-$variant.apk"
 Copy-Item -LiteralPath $apk -Destination $destination -Force
 Write-Output "APK pronto: $destination"

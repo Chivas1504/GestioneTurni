@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -301,67 +303,4 @@ class ChangePasswordDialog(QDialog):
 
 
 def _apply_common_style(dialog: QDialog) -> None:
-    dialog.setStyleSheet(
-        """
-        QDialog {
-            background-color: #eef3f8;
-        }
-
-        QLabel#passwordTitle {
-            color: #16324a;
-            font-size: 25px;
-            font-weight: 900;
-            letter-spacing: 1px;
-        }
-
-        QLabel#passwordDoctor {
-            color: #218b5d;
-            font-size: 20px;
-            font-weight: 800;
-        }
-
-        QLabel#passwordDescription {
-            color: #60758a;
-            font-size: 15px;
-        }
-
-        QLineEdit {
-            background-color: white;
-            color: #213d53;
-            border: 1px solid #cbd8e3;
-            border-radius: 10px;
-            padding: 9px 12px;
-            font-size: 16px;
-        }
-
-        QLineEdit:focus {
-            border: 2px solid #218b5d;
-        }
-
-        QPushButton {
-            border: none;
-            border-radius: 10px;
-            padding: 10px 20px;
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        QPushButton#primaryButton {
-            background-color: #218b5d;
-            color: white;
-        }
-
-        QPushButton#primaryButton:hover {
-            background-color: #19794f;
-        }
-
-        QPushButton#secondaryButton {
-            background-color: #dfe7ee;
-            color: #334b5d;
-        }
-
-        QPushButton#secondaryButton:hover {
-            background-color: #d2dde6;
-        }
-        """
-    )
+    dialog.setStyleSheet(DIALOG_STYLE)

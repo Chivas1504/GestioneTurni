@@ -1,3 +1,35 @@
+## Aggiornamento TV 1.1.0: collegamento automatico
+
+L’APK attuale è `android-tv/output/GestioneTurniTV-1.1.0.apk`.
+Installarlo sulla TV sopra la versione 1.0.0, senza disinstallarla: la firma è
+la stessa e gli indirizzi manuali precedenti vengono conservati. Per questa
+funzione non serve aggiornare i PC già dotati del protocollo di ricerca
+(versione 1.10.2 dello studio compresa).
+
+All’apertura la TV cerca automaticamente il server dello studio tramite UDP
+50555, poi verifica il display HTTP sulla porta 8080. Non occorre digitare un
+indirizzo. Se i PC sono spenti, attende e riprova; se il PC collegato diventa
+irraggiungibile, ripete la ricerca. La ricerca non accende i PC o la TV.
+TV e PC devono essere nella stessa rete, senza isolamento tra dispositivi.
+
+L’ultimo indirizzo funzionante viene ricordato. Nelle impostazioni restano due
+indirizzi manuali facoltativi e la possibilità di disattivare la ricerca automatica.
+Le operazioni di rete avvengono fuori dal thread dell’interfaccia. La protezione
+dello schermo resta invariata.
+
+Prove da effettuare sulla Xiaomi:
+1. Aprire l’app TV con un PC acceso: deve collegarsi senza inserire indirizzi.
+2. Aprire la TV prima dei PC, poi avviare Gestione Turni sul PC: deve collegarsi.
+3. Con due PC già collegati tra loro, spegnere quello server: attendere
+   l’elezione del sostituto e controllare che la TV riprenda gli aggiornamenti.
+4. Chiudere e riaprire l’app TV il giorno seguente.
+
+Verifiche locali: 12 test Java superati, compilazione APK riuscita e firma
+v1/v2/v3, manifest e allineamento verificati. La prova sulla rete dello studio
+e sulla Xiaomi resta necessaria. Nessuna nuova release è stata pubblicata.
+
+---
+
 # Gestione Turni 1.10.2 e app Android TV 1.0.0
 
 ## Stato della consegna

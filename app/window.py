@@ -12,6 +12,13 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QScrollArea,
+    QStackedWidget,
+    QComboBox,
+    QButtonGroup,
+    QDialog,
+    QLayout,
+    QSizePolicy,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -25,6 +32,19 @@ from app.version import APP_NAME, APP_VERSION
 from app.web_display_server import WEB_DISPLAY_PORT
 from app.studio_card import StudioCard
 from app.styles import APP_STYLE
+
+
+class _PageContainer(QWidget):
+    def __init__(self, page: QWidget) -> None:
+        super().__init__()
+        self._page = page
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        layout.addWidget(page)
+
+    def widget(self) -> QWidget:
+        return self._page
 
 
 class MainWindow(QMainWindow):
@@ -83,6 +103,8 @@ class MainWindow(QMainWindow):
             "Sincronizzazione in corso"
         )
         self.current_server_address = ""
+        self.current_network_status = ""
+        self._tv_url = ""
 
         # Stato dell'avviso a schermo intero. La chiave identifica
         # il singolo paziente/avvio timer, così l'avviso compare
@@ -98,11 +120,11 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon())
 
         self.setMinimumSize(
-            700,
-            650,
+            780,
+            580,
         )
         self.resize(
-            900,
+            1100,
             800,
         )
 
@@ -139,25 +161,10 @@ class MainWindow(QMainWindow):
         self._connect_controller()
 
     def _build_header(self) -> None:
-        self.title_label = QLabel(
-            "GESTIONE TURNI"
-        )
-        self.title_label.setObjectName(
-            "titleLabel"
-        )
-        self.title_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.subtitle_label = QLabel(
-            "Sistema di gestione turni"
-        )
-        self.subtitle_label.setObjectName(
-            "subtitleLabel"
-        )
-        self.subtitle_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
+        self.title_label = QLabel("Ambulatorio")
+        self.title_label.setObjectName("titleLabel")
+        self.subtitle_label = QLabel("Chiamate e tempi di visita")
+        self.subtitle_label.setObjectName("subtitleLabel")
 
     def _build_doctor_card(
         self,
@@ -188,7 +195,7 @@ class MainWindow(QMainWindow):
         )
         self.patient_timer_label.setFixedHeight(34)
 
-        self.patient_pause_button = QPushButton("⏸ Pausa timer")
+        self.patient_pause_button = QPushButton("Pausa timer")
         self.patient_pause_button.setObjectName("patientPauseButton")
         self.patient_pause_button.setFixedHeight(34)
         self.patient_pause_button.setFixedWidth(150)
@@ -222,7 +229,7 @@ class MainWindow(QMainWindow):
             self.patient_timer_label.setProperty("active", False)
             self.patient_timer_label.setProperty("warning", False)
             self.patient_pause_button.setEnabled(False)
-            self.patient_pause_button.setText("⏸ Pausa timer")
+            self.patient_pause_button.setText("Pausa timer")
             self.patient_pause_button.setProperty("paused", False)
             self._refresh_widget_style(self.patient_pause_button)
             self._refresh_widget_style(
@@ -302,7 +309,7 @@ class MainWindow(QMainWindow):
 
         self.patient_pause_button.setEnabled(True)
         self.patient_pause_button.setText(
-            "▶ Riprendi timer" if paused else "⏸ Pausa timer"
+            "Riprendi timer" if paused else "Pausa timer"
         )
         self.patient_pause_button.setProperty("paused", paused)
         self._refresh_widget_style(self.patient_pause_button)
@@ -406,7 +413,7 @@ class MainWindow(QMainWindow):
 
     def _build_action_controls(self) -> None:
         self.display_button = QPushButton(
-            "🖥  Display sala d'attesa"
+            "Display sala d'attesa"
         )
         self.display_button.setObjectName(
             "displayCompactButton"
@@ -419,7 +426,7 @@ class MainWindow(QMainWindow):
         )
 
         self.dashboard_button = QPushButton(
-            "Dashboard"
+            "Statistiche"
         )
         self.dashboard_button.setObjectName(
             "dashboardCompactButton"
@@ -434,7 +441,7 @@ class MainWindow(QMainWindow):
         )
 
         self.history_button = QPushButton(
-            "Storico"
+            "Storico visite"
         )
         self.history_button.setObjectName(
             "historyCompactButton"
@@ -486,7 +493,7 @@ class MainWindow(QMainWindow):
 
     def _build_settings_button(self) -> None:
         self.settings_button = QPushButton(
-            "⚙  Impostazioni"
+            "Impostazioni"
         )
         self.settings_button.setObjectName(
             "settingsButton"
@@ -497,7 +504,7 @@ class MainWindow(QMainWindow):
         )
 
         self.about_button = QPushButton(
-            f"Informazioni · v{APP_VERSION}"
+            "Informazioni"
         )
         self.about_button.setObjectName(
             "aboutButton"
@@ -546,111 +553,242 @@ class MainWindow(QMainWindow):
     def open_about(self) -> None:
         AboutDialog(self).exec()
 
-    def _build_layout(
-        self,
-        central_widget: QWidget,
-    ) -> None:
-        self.main_layout = QVBoxLayout(
-            central_widget
-        )
+    def _build_layout(self, central_widget: QWidget) -> None:
+        root = QHBoxLayout(central_widget)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        self.sidebar = QFrame()
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setFixedWidth(204)
+        nav = QVBoxLayout(self.sidebar)
+        nav.setContentsMargins(18, 26, 18, 18)
+        nav.setSpacing(5)
+        brand_row = QHBoxLayout()
+        brand_row.setSpacing(10)
+        mark = QLabel("GT")
+        mark.setObjectName("brandMark")
+        mark.setFixedSize(40, 40)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_row.addWidget(mark)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(2)
+        brand_name = QLabel("Gestione Turni")
+        brand_name.setObjectName("brandName")
+        brand_note = QLabel("STUDIO MEDICO")
+        brand_note.setObjectName("brandSubtitle")
+        brand_text.addWidget(brand_name)
+        brand_text.addWidget(brand_note)
+        brand_row.addLayout(brand_text)
+        nav.addLayout(brand_row)
+        nav.addSpacing(36)
+        section = QLabel("ATTIVITÀ")
+        section.setObjectName("navSection")
+        nav.addWidget(section)
+        nav.addSpacing(7)
+        self.home_button = QPushButton("Ambulatorio")
+        self.home_button.setObjectName("homeButton")
+        self.home_button.clicked.connect(lambda: self.show_page("home"))
+        nav.addWidget(self.home_button)
+        nav.addWidget(self.dashboard_button)
+        nav.addWidget(self.history_button)
+        nav.addWidget(self.display_button)
+        nav.addStretch()
+        nav.addWidget(self.settings_button)
+        nav.addWidget(self.about_button)
+        version = QLabel(f"Versione {APP_VERSION}")
+        version.setObjectName("versionLabel")
+        version.setContentsMargins(14, 10, 0, 0)
+        nav.addWidget(version)
+        root.addWidget(self.sidebar)
 
-        self.main_layout.setContentsMargins(
-            36,
-            18,
-            36,
-            20,
-        )
-        self.main_layout.setSpacing(
-            8
-        )
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        workspace = QWidget()
+        workspace.setObjectName("workspace")
+        self.main_layout = QVBoxLayout(workspace)
+        self.main_layout.setContentsMargins(32, 28, 32, 22)
+        self.main_layout.setSpacing(16)
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        headings = QVBoxLayout()
+        headings.setSpacing(4)
+        headings.addWidget(self.title_label)
+        headings.addWidget(self.subtitle_label)
+        header.addLayout(headings, 1)
+        header.addWidget(self.queue_status_label)
+        header.addWidget(self.queue_button)
+        self.main_layout.addLayout(header)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Modalità chiamata"))
+        self.mode_group = QButtonGroup(self)
+        self.mode_number_button = QPushButton("Numero")
+        self.mode_surname_button = QPushButton("Cognome")
+        for button, mode in ((self.mode_number_button, "number"), (self.mode_surname_button, "surname")):
+            button.setObjectName("modeButton")
+            button.setCheckable(True)
+            button.setFixedHeight(36)
+            self.mode_group.addButton(button)
+            button.setChecked(self.queue_mode == mode)
+            button.clicked.connect(lambda checked=False, value=mode: self.controller.set_queue_mode(value))
+            mode_row.addWidget(button)
+        mode_row.addSpacing(12)
+        mode_row.addWidget(QLabel("Lettera"))
+        self.queue_prefix_combo = QComboBox()
+        self.queue_prefix_combo.setObjectName("homeQueueMode")
+        self.queue_prefix_combo.addItem("Nessuna", "")
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            self.queue_prefix_combo.addItem(letter, letter)
+        self.queue_prefix_combo.setCurrentIndex(max(0, self.queue_prefix_combo.findData(self.controller.queue_prefix)))
+        self.queue_prefix_combo.setEnabled(self.queue_mode == "number")
+        self.queue_prefix_combo.setMinimumHeight(36)
+        self.queue_prefix_combo.setFixedWidth(110)
+        self.queue_prefix_combo.setToolTip("Lettera prima del numero chiamato. Nessuna mostra solo il numero.")
+        self.queue_prefix_combo.currentIndexChanged.connect(
+            lambda: self.controller.set_queue_prefix(self.queue_prefix_combo.currentData()))
+        mode_row.addWidget(self.queue_prefix_combo)
+        mode_row.addStretch()
+        self.main_layout.addLayout(mode_row)
+        self.main_layout.addWidget(self.doctor_card, 1)
 
-        self.main_layout.addWidget(
-            self.title_label
-        )
-        self.main_layout.addWidget(
-            self.subtitle_label
-        )
+        timer_panel = QFrame()
+        timer_panel.setObjectName("timerPanel")
+        timer_row = QHBoxLayout(timer_panel)
+        timer_row.setContentsMargins(20, 12, 20, 12)
+        timer_labels = QVBoxLayout()
+        timer_labels.setSpacing(3)
+        timer_heading = QLabel("TEMPO DI VISITA")
+        timer_heading.setObjectName("panelEyebrow")
+        timer_labels.addWidget(timer_heading)
+        timer_labels.addWidget(self.patient_timer_label)
+        timer_row.addLayout(timer_labels, 1)
+        timer_row.addWidget(self.patient_pause_button)
+        self.main_layout.addWidget(timer_panel)
 
-        self.main_layout.addSpacing(4)
-
-        self.main_layout.addWidget(
-            self.doctor_card
-        )
-        self.main_layout.addLayout(
-            self.patient_timer_layout
-        )
-
-        self.main_layout.addWidget(
-            self.queue_status_label
-        )
-        self.main_layout.addWidget(
-            self.queue_button
-        )
-        self.main_layout.addWidget(
-            self.display_button
-        )
-        self.main_layout.addLayout(
-            self.secondary_buttons_layout
-        )
-
-        self.main_layout.addWidget(
-            self.network_separator
-        )
-        self.main_layout.addWidget(
-            self.network_summary_label
-        )
-        self.main_layout.addLayout(
-            self.bottom_buttons_layout
-        )
-
+        tv_panel = QFrame()
+        tv_panel.setObjectName("tvPanel")
+        tv_row = QHBoxLayout(tv_panel)
+        tv_row.setContentsMargins(20, 12, 20, 12)
+        tv_labels = QVBoxLayout()
+        tv_labels.setSpacing(4)
+        tv_heading = QLabel("Display sala d'attesa")
+        tv_heading.setObjectName("tvPanelTitle")
+        self.tv_address_label = QLabel("Indirizzo disponibile all'avvio")
+        self.tv_address_label.setObjectName("tvAddress")
+        self.tv_address_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.tv_address_label.setWordWrap(True)
+        tv_labels.addWidget(tv_heading)
+        tv_labels.addWidget(self.tv_address_label)
+        tv_row.addLayout(tv_labels, 1)
+        self.copy_tv_button = QPushButton("Copia indirizzo")
+        self.copy_tv_button.setObjectName("copyTvButton")
+        self.copy_tv_button.setEnabled(False)
+        self.copy_tv_button.clicked.connect(self._copy_tv_address)
+        tv_row.addWidget(self.copy_tv_button)
+        self.main_layout.addWidget(tv_panel)
+        self.network_summary_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.main_layout.addWidget(self.network_summary_label)
         self.main_layout.addStretch()
+        scroll.setWidget(workspace)
+        self.page_stack = QStackedWidget()
+        self.page_stack.addWidget(scroll)
+        self.pages = {"home": scroll}
+        self.current_page = "home"
+        root.addWidget(self.page_stack, 1)
+        self._update_navigation()
+        self.patient_timer_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.queue_button.setFixedWidth(144)
+        self.queue_status_label.setMinimumWidth(104)
+
+    def _update_navigation(self) -> None:
+        for name, button in (("home", self.home_button), ("dashboard", self.dashboard_button),
+                             ("history", self.history_button), ("settings", self.settings_button)):
+            button.setProperty("selected", name == self.current_page)
+            self._refresh_widget_style(button)
+
+    def show_page(self, name: str) -> None:
+        if name not in self.pages:
+            if name == "dashboard":
+                from app.dashboard_dialog import DashboardDialog
+                page = DashboardDialog(controller=self.controller, parent=self)
+                self.controller.dashboard_window = page
+            elif name == "history":
+                from app.history_dialog import HistoryDialog
+                page = HistoryDialog(doctor_id=self.doctor_id, doctor_name=self.controller.doctor_name, parent=self)
+                self.controller.history_window = page
+            elif name == "settings":
+                from app.settings_dialog import SettingsDialog
+                page = SettingsDialog(self.controller.config, self.controller.delete_current_account, self)
+                page.accepted.connect(lambda: self._settings_saved(page))
+            else:
+                return
+            page.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+            page.setModal(False)
+            page.setWindowFlags(Qt.WindowType.Widget)
+            page.layout().setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+            page.setMinimumSize(0, 0)
+            page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
+            if name == "settings":
+                page.rejected.connect(lambda: self._discard_settings())
+            else:
+                page.rejected.connect(lambda: self.show_page("home"))
+            if name in {"dashboard", "history"}:
+                page.close_button.clicked.disconnect()
+                page.close_button.setText("Ambulatorio")
+                page.close_button.clicked.connect(lambda: self.show_page("home"))
+            scroll = _PageContainer(page)
+            self.pages[name] = scroll
+            self.page_stack.addWidget(scroll)
+        scroll = self.pages[name]
+        page = scroll.widget()
+        if name == "dashboard":
+            page.refresh_dashboard()
+        elif name == "history":
+            page.doctor_name = self.controller.doctor_name
+            page.doctor_label.setText(page.doctor_name)
+            page.refresh_history()
+        self.page_stack.setCurrentWidget(scroll)
+        if name != "home":
+            page.show()
+        self.current_page = name
+        self._update_navigation()
+
+    def _settings_saved(self, page: QDialog) -> None:
+        if page.account_deleted:
+            QTimer.singleShot(0, QApplication.closeAllWindows)
+            return
+        if page.saved_settings is not None:
+            self.controller.apply_settings(page.saved_settings)
+        self.show_page("home")
+        self._discard_settings()
+
+    def _discard_settings(self) -> None:
+        self.show_page("home")
+        scroll = self.pages.pop("settings")
+        self.page_stack.removeWidget(scroll)
+        scroll.deleteLater()
+
+    def _copy_tv_address(self) -> None:
+        if self._tv_url:
+            QApplication.clipboard().setText(self._tv_url)
 
     def _apply_responsive_layout(self, height: int) -> None:
-        """Adatta l'interfaccia all'altezza realmente disponibile.
-
-        Windows può ridurre parecchio lo spazio utile quando usa scaling DPI,
-        barra delle applicazioni o finestre massimizzate. Sotto i 900 px
-        passiamo automaticamente a una variante compatta, senza sovrapporre
-        timer e controlli.
-        """
-        compact = int(height) < 900
-
+        compact = height < 740
         self.doctor_card.set_compact_mode(compact)
-
-        if compact:
-            self.main_layout.setContentsMargins(28, 10, 28, 12)
-            self.main_layout.setSpacing(5)
-            self.title_label.setStyleSheet(
-                "font-size: 28px; font-weight: 800; letter-spacing: 2px;"
-            )
-            self.subtitle_label.setStyleSheet("font-size: 15px;")
-            self.patient_timer_label.setFixedHeight(30)
-            self.patient_pause_button.setFixedHeight(30)
-            self.patient_pause_button.setFixedWidth(135)
-            self.queue_status_label.setFixedHeight(22)
-            self.queue_button.setFixedHeight(50)
-            self.display_button.setFixedHeight(40)
-            self.dashboard_button.setFixedHeight(40)
-            self.history_button.setFixedHeight(40)
-            self.network_summary_label.setFixedHeight(24)
-            self.settings_button.setFixedHeight(40)
-            self.about_button.setFixedHeight(40)
-        else:
-            self.main_layout.setContentsMargins(36, 18, 36, 20)
-            self.main_layout.setSpacing(8)
-            self.title_label.setStyleSheet("")
-            self.subtitle_label.setStyleSheet("")
-            self.patient_timer_label.setFixedHeight(34)
-            self.patient_pause_button.setFixedHeight(34)
-            self.patient_pause_button.setFixedWidth(150)
-            self.queue_status_label.setFixedHeight(24)
-            self.queue_button.setFixedHeight(56)
-            self.display_button.setFixedHeight(46)
-            self.dashboard_button.setFixedHeight(46)
-            self.history_button.setFixedHeight(46)
-            self.network_summary_label.setFixedHeight(26)
-            self.settings_button.setFixedHeight(46)
-            self.about_button.setFixedHeight(46)
+        self.sidebar.setFixedWidth(204)
+        self.main_layout.setContentsMargins(22 if compact else 32, 18 if compact else 28,
+                                           22 if compact else 32, 14 if compact else 22)
+        self.main_layout.setSpacing(12 if compact else 16)
+        self.title_label.setStyleSheet("font-size:24px;" if compact else "")
+        self.patient_timer_label.setFixedHeight(30)
+        self.patient_pause_button.setFixedSize(132, 36)
+        self.queue_status_label.setFixedHeight(28)
+        self.queue_button.setFixedHeight(42)
+        for button in (self.display_button, self.dashboard_button, self.history_button,
+                       self.settings_button, self.about_button):
+            button.setFixedHeight(42)
+        self.network_summary_label.setFixedHeight(24)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -751,6 +889,12 @@ class MainWindow(QMainWindow):
             )
 
         self.queue_mode = queue_mode
+        self.mode_number_button.setChecked(queue_mode == "number")
+        self.mode_surname_button.setChecked(queue_mode == "surname")
+        self.queue_prefix_combo.blockSignals(True)
+        self.queue_prefix_combo.setCurrentIndex(max(0, self.queue_prefix_combo.findData(queue_prefix)))
+        self.queue_prefix_combo.blockSignals(False)
+        self.queue_prefix_combo.setEnabled(queue_mode == "number")
         self.current_surname = current_surname
         self.doctor_card.set_queue_prefix(queue_prefix)
         self.doctor_card.set_queue_mode(queue_mode)
@@ -818,10 +962,8 @@ class MainWindow(QMainWindow):
 
         self._update_network_summary()
 
-    def update_network_status(
-        self,
-        status: str,
-    ) -> None:
+    def update_network_status(self, status: str) -> None:
+        self.current_network_status = str(status).strip()
         self._update_network_summary()
 
     def update_sync_status(
@@ -846,28 +988,27 @@ class MainWindow(QMainWindow):
         self._update_network_summary()
 
     def _update_network_summary(self) -> None:
-        sync_text = self._simplify_sync_status(
-            self.current_sync_status
-        )
-
-        parts = [
-            self.current_network_role,
-            sync_text,
-        ]
-
-        if self.current_server_address:
-            if self.current_network_role == "Client":
-                parts.append(self.current_server_address)
-
-            parts.append(
-                "TV: "
-                f"http://{self.current_server_address}:"
-                f"{WEB_DISPLAY_PORT}"
-            )
-
-        self.network_summary_label.setText(
-            "  •  ".join(parts)
-        )
+        status = self.current_network_status.lower()
+        sync = self.current_sync_status.lower()
+        if "errore" in sync:
+            caption, state = "Verificare la sincronizzazione", "error"
+        elif any(word in status for word in ("non raggiungibile", "disconness", "tentativo", "passaggio")):
+            caption, state = "Riconnessione alla rete dello studio…", "waiting"
+        elif self.current_network_role in {"Server", "Client"}:
+            caption, state = "Rete dello studio collegata", "online"
+        else:
+            caption, state = "Ricerca dei computer dello studio…", "waiting"
+        self.network_summary_label.setText(caption)
+        self.network_summary_label.setProperty("connection", state)
+        details = " · ".join(filter(None, (self.current_network_role, self.current_sync_status,
+                                           self.current_network_status)))
+        self.network_summary_label.setToolTip(details)
+        self._refresh_widget_style(self.network_summary_label)
+        self._tv_url = (f"http://{self.current_server_address}:{WEB_DISPLAY_PORT}"
+                        if self.current_server_address else "")
+        if hasattr(self, "tv_address_label"):
+            self.tv_address_label.setText(self._tv_url or "Indirizzo disponibile all'avvio")
+            self.copy_tv_button.setEnabled(bool(self._tv_url))
 
     @staticmethod
     def _simplify_sync_status(
@@ -908,102 +1049,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _additional_style() -> str:
-        return """
-        QPushButton#displayCompactButton {
-            background-color: #dce8f1;
-            color: #234f6e;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 800;
-        }
-
-        QPushButton#dashboardCompactButton {
-            background-color: #2c6088;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 800;
-        }
-
-        QPushButton#historyCompactButton {
-            background-color: #dfe7ee;
-            color: #29485e;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 800;
-        }
-
-        QFrame#networkSeparator {
-            background-color: #ccd9e3;
-            border: none;
-            min-height: 1px;
-            max-height: 1px;
-        }
-
-        QPushButton#aboutButton {
-            background-color: #dfe7ee;
-            color: #29485e;
-            border: none;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 800;
-        }
-
-        QPushButton#aboutButton:hover {
-            background-color: #d2dde6;
-        }
-
-        QLabel#patientTimerLabel {
-            color: #60758a;
-            font-size: 16px;
-            font-weight: 800;
-            padding: 4px;
-        }
-
-        QLabel#patientTimerLabel[active="true"] {
-            color: #17689c;
-        }
-
-        QLabel#patientTimerLabel[warning="true"] {
-            color: #b42318;
-            background-color: #fee4e2;
-            border: 1px solid #fda29b;
-            border-radius: 8px;
-        }
-
-        QPushButton#patientPauseButton {
-            background-color: #dce8f1;
-            color: #234f6e;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 800;
-            padding: 2px 10px;
-        }
-
-        QPushButton#patientPauseButton:hover {
-            background-color: #cfdee9;
-        }
-
-        QPushButton#patientPauseButton[paused="true"] {
-            background-color: #fff0c2;
-            color: #7a4d00;
-        }
-
-        QPushButton#patientPauseButton:disabled {
-            background-color: #edf2f6;
-            color: #9aa9b5;
-        }
-
-        QLabel#networkSummary {
-            color: #176b9c;
-            font-size: 14px;
-            font-weight: 700;
-        }
-        """
+        return ""
 
     def closeEvent(
         self,

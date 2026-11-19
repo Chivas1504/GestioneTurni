@@ -18,6 +18,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.CheckBox;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -31,6 +34,11 @@ public class MainActivity extends Activity {
     private String primary = "", backup = "";
     private boolean resumed, pageReady;
     private int failures;
+    private boolean automatic = true, connecting;
+    private int generation;
+    private String activeUrl = "", lastServer = "";
+    private final ExecutorService network = Executors.newSingleThreadExecutor();
+    private final Runnable monitor = () -> checkConnection();
     private final Runnable retry = () -> loadDisplay();
     private final Runnable loadTimeout = () -> {
         if (web != null) web.stopLoading();
@@ -42,6 +50,8 @@ public class MainActivity extends Activity {
         preferences = getSharedPreferences("display", MODE_PRIVATE);
         primary = preferences.getString("primary", "");
         backup = preferences.getString("backup", "");
+        automatic = preferences.getBoolean("automatic", true);
+        lastServer = preferences.getString("last_server", "");
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.rgb(11, 45, 71));
@@ -72,7 +82,7 @@ public class MainActivity extends Activity {
         config.setSupportMultipleWindows(false);
         config.setMediaPlaybackRequiresUserGesture(false);
         config.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        config.setUserAgentString(config.getUserAgentString() + " GestioneTurniTV/1.0");
+        config.setUserAgentString(config.getUserAgentString() + " GestioneTurniTV/1.1");
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return !LocalAddress.permittedResource(request.getUrl().toString());
@@ -91,13 +101,14 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 if (!pageReady) return;
                 handler.removeCallbacks(loadTimeout);
+                handler.removeCallbacks(retry);
                 failures = 0;
                 status.setText("Gestione Turni TV · schermo mantenuto acceso · MENU o Indietro: opzioni");
             }
         });
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
-        if (primary.isEmpty()) showSettings();
+
     }
 
     private void immersive() {
@@ -110,10 +121,12 @@ public class MainActivity extends Activity {
         resumed = true;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         immersive();
-        if (web != null) { web.onResume(); web.setKeepScreenOn(true); if (!pageReady) loadDisplay(); }
+        if (web != null) { web.onResume(); web.setKeepScreenOn(true); loadDisplay(); }
     }
     @Override protected void onPause() {
         resumed = false;
+        generation++;
+        connecting = false;
         handler.removeCallbacksAndMessages(null);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (web != null) { web.setKeepScreenOn(false); web.onPause(); }
@@ -121,11 +134,14 @@ public class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        network.shutdownNow();
         if (web != null) web.destroy();
         super.onDestroy();
     }
     private void failed() {
+        if (!resumed) return;
         handler.removeCallbacks(loadTimeout);
+        handler.removeCallbacks(monitor);
         pageReady = false;
         failures++;
         handler.post(() -> status.setText("PC non raggiungibile · nuovo tentativo automatico tra 5 secondi"));
@@ -133,22 +149,63 @@ public class MainActivity extends Activity {
         if (resumed) handler.postDelayed(retry, 5000);
     }
     private void loadDisplay() {
-        if (!resumed || web == null || primary.isEmpty()) return;
+        if (!resumed || web == null || connecting) return;
         handler.removeCallbacks(retry);
-        String url = failures % 2 == 1 && !backup.isEmpty() ? backup : primary;
-        status.setText("Connessione al PC · " + url);
-        pageReady = true;
-        web.loadUrl(url);
-        handler.postDelayed(loadTimeout, 12000);
+        handler.removeCallbacks(monitor);
+        handler.removeCallbacks(loadTimeout);
+        connecting = true;
+        int token = ++generation;
+        final boolean auto = automatic;
+        final String first = primary, second = backup, last = lastServer;
+        status.setText(auto ? "Ricerca automatica del PC dello studio..." : "Connessione al PC...");
+        network.execute(() -> {
+            final String selected = DiscoveryRules.resolve(auto, ServerDiscovery::discover,
+                ServerDiscovery::reachable, last, first, second);
+            handler.post(() -> {
+                if (!resumed || token != generation) return;
+                connecting = false;
+                if (selected == null) {
+                    status.setText("Nessun PC disponibile. Apri Gestione Turni sul PC: riprovo automaticamente.");
+                    handler.postDelayed(retry, 5000);
+                    return;
+                }
+                activeUrl = selected;
+                lastServer = selected;
+                preferences.edit().putString("last_server", selected).apply();
+                pageReady = true;
+                status.setText("Collegamento al display dello studio...");
+                web.loadUrl(selected);
+                handler.removeCallbacks(loadTimeout);
+                handler.postDelayed(loadTimeout, 12000);
+                handler.postDelayed(monitor, 5000);
+            });
+        });
+    }
+    private void checkConnection() {
+        if (!resumed || connecting || activeUrl.isEmpty()) return;
+        final int token = generation;
+        final String address = activeUrl;
+        network.execute(() -> {
+            boolean alive = ServerDiscovery.reachable(address);
+            handler.post(() -> {
+                if (!resumed || token != generation) return;
+                if (alive) handler.postDelayed(monitor, 5000);
+                else { pageReady = false; loadDisplay(); }
+            });
+        });
     }
     private void showSettings() {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(32, 16, 32, 16);
         TextView help = new TextView(this);
-        help.setText("Copia l'indirizzo TV mostrato sul PC. Esempio: 192.168.1.10\n"
-            + "Il secondo PC è facoltativo. TV e PC devono essere sulla stessa rete.");
+        help.setText("Il collegamento automatico non richiede indirizzi.\n"
+            + "Gli indirizzi manuali sono facoltativi. TV e PC devono essere sulla stessa rete.");
         form.addView(help);
+        CheckBox auto = new CheckBox(this);
+        auto.setText("Trova automaticamente il PC dello studio");
+        auto.setChecked(automatic);
+        form.addView(auto);
         EditText first = new EditText(this);
         first.setSingleLine(true);
         first.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
@@ -161,15 +218,16 @@ public class MainActivity extends Activity {
         second.setHint("Secondo PC (facoltativo)");
         second.setText(backup);
         form.addView(second);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Collega la TV al PC")
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Collegamento allo studio")
             .setView(form).setPositiveButton("Salva e apri", null).setNegativeButton("Annulla", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String next = LocalAddress.normalise(first.getText().toString());
+            String next = first.getText().toString().trim().isEmpty() && auto.isChecked() ? "" : LocalAddress.normalise(first.getText().toString());
             String other = second.getText().toString().trim().isEmpty() ? "" : LocalAddress.normalise(second.getText().toString());
             if (next == null) { first.setError("Inserisci un indirizzo IPv4 locale valido (porta 8080)"); return; }
             if (other == null) { second.setError("Indirizzo non valido"); return; }
-            primary = next; backup = other;
-            preferences.edit().putString("primary", primary).putString("backup", backup).apply();
+            generation++; connecting = false;
+            automatic = auto.isChecked(); primary = next; backup = other;
+            preferences.edit().putString("primary", primary).putString("backup", backup).putBoolean("automatic", automatic).apply();
             failures = 0;
             dialog.dismiss();
             loadDisplay();
@@ -179,7 +237,7 @@ public class MainActivity extends Activity {
     }
     private void options() {
         new AlertDialog.Builder(this).setTitle("Gestione Turni TV")
-            .setItems(new String[]{"Indirizzi dei PC", "Ricarica display", "Esci"}, (dialog, which) -> {
+            .setItems(new String[]{"Collegamento automatico / indirizzi", "Ricarica display", "Esci"}, (dialog, which) -> {
                 if (which == 0) showSettings();
                 else if (which == 1) { failures = 0; loadDisplay(); }
                 else finish();

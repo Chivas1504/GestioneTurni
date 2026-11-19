@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -50,7 +52,7 @@ class SettingsDialog(QDialog):
         title_label = QLabel("Impostazioni")
         title_label.setObjectName("settingsTitle")
         title_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         description_label = QLabel(
@@ -62,7 +64,7 @@ class SettingsDialog(QDialog):
         )
         description_label.setWordWrap(True)
         description_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         section_doctor = QLabel("MEDICO")
@@ -92,48 +94,6 @@ class SettingsDialog(QDialog):
             doctor_name_label,
             self.doctor_name_input,
         )
-
-        self.queue_prefix_input = QLineEdit()
-        self.queue_prefix_input.setPlaceholderText("Es. A")
-        self.queue_prefix_input.setMaxLength(1)
-        self.queue_prefix_input.setMinimumHeight(46)
-        self.queue_prefix_input.setText(
-            str(current_config.get("queue_prefix", "")).upper()
-        )
-        queue_prefix_label = QLabel("Lettera della coda:")
-        queue_prefix_label.setObjectName("settingsFormLabel")
-        doctor_form.addRow(
-            queue_prefix_label,
-            self.queue_prefix_input,
-        )
-
-        self.queue_mode_combo = QComboBox()
-        self.queue_mode_combo.setMinimumHeight(46)
-        self.queue_mode_combo.addItem("Numero", "number")
-        self.queue_mode_combo.addItem("Cognome", "surname")
-        current_queue_mode = str(
-            current_config.get("queue_mode", "number")
-        ).strip().lower()
-        mode_index = self.queue_mode_combo.findData(
-            "surname" if current_queue_mode == "surname" else "number"
-        )
-        self.queue_mode_combo.setCurrentIndex(max(0, mode_index))
-        queue_mode_label = QLabel("Modalità chiamata:")
-        queue_mode_label.setObjectName("settingsFormLabel")
-        doctor_form.addRow(
-            queue_mode_label,
-            self.queue_mode_combo,
-        )
-
-        def update_prefix_enabled() -> None:
-            self.queue_prefix_input.setEnabled(
-                self.queue_mode_combo.currentData() == "number"
-            )
-
-        self.queue_mode_combo.currentIndexChanged.connect(
-            update_prefix_enabled
-        )
-        update_prefix_enabled()
 
         section_display = QLabel("DISPLAY")
         section_display.setObjectName("settingsSection")
@@ -235,7 +195,7 @@ class SettingsDialog(QDialog):
             "settingsVersion"
         )
         self.version_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         self.about_button = QPushButton(
@@ -284,10 +244,10 @@ class SettingsDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(
-            24,
-            20,
-            24,
-            20,
+            32,
+            28,
+            32,
+            22,
         )
         main_layout.setSpacing(12)
 
@@ -307,10 +267,10 @@ class SettingsDialog(QDialog):
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setContentsMargins(
-            10,
-            10,
-            10,
-            10,
+            0,
+            0,
+            0,
+            0,
         )
         scroll_layout.setSpacing(14)
 
@@ -344,164 +304,7 @@ class SettingsDialog(QDialog):
         main_layout.addWidget(self.version_label)
         main_layout.addLayout(buttons_layout)
 
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QScrollArea, QScrollArea > QWidget > QWidget {
-                background-color: transparent;
-                border: none;
-            }
-
-            QLabel#settingsTitle {
-                color: #16324a;
-                font-size: 28px;
-                font-weight: 800;
-            }
-
-            QLabel#settingsDescription {
-                color: #60758a;
-                font-size: 15px;
-            }
-
-            QLabel#settingsVersion {
-                color: #60758a;
-                font-size: 13px;
-                font-weight: 700;
-            }
-
-            QLabel#settingsSection {
-                color: #2c6088;
-                font-size: 14px;
-                font-weight: 800;
-                letter-spacing: 2px;
-            }
-
-            QLabel#settingsFormLabel {
-                color: #213d53;
-                font-size: 15px;
-            }
-
-            QLineEdit, QSpinBox, QComboBox {
-                background-color: white;
-                color: #213d53;
-                border: 1px solid #cbd8e3;
-                border-radius: 10px;
-                padding: 9px 12px;
-                font-size: 16px;
-            }
-
-            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
-                border: 2px solid #218b5d;
-            }
-
-            QComboBox QAbstractItemView {
-                background-color: white;
-                color: #213d53;
-                border: 1px solid #cbd8e3;
-                selection-background-color: #dce8f1;
-                selection-color: #213d53;
-            }
-
-            QCheckBox {
-                color: #2f4d63;
-                font-size: 16px;
-                spacing: 10px;
-                padding: 5px 0;
-            }
-
-            QCheckBox::indicator {
-                width: 22px;
-                height: 22px;
-            }
-
-            QPushButton {
-                border: none;
-                border-radius: 12px;
-                padding: 10px 22px;
-                font-size: 16px;
-                font-weight: 700;
-            }
-
-            QPushButton#settingsAboutButton,
-            QPushButton#settingsPasswordButton,
-            QPushButton#settingsUpdateButton {
-                background-color: #dce8f1;
-                color: #234f6e;
-            }
-
-            QPushButton#settingsAboutButton:hover,
-            QPushButton#settingsPasswordButton:hover,
-            QPushButton#settingsUpdateButton:hover {
-                background-color: #cfdee9;
-            }
-
-            QPushButton#settingsDeleteAccountButton {
-                background-color: #b23a34;
-                color: white;
-            }
-
-            QPushButton#settingsDeleteAccountButton:hover {
-                background-color: #962f2a;
-            }
-
-            QPushButton#settingsCancelButton {
-                background-color: #dfe7ee;
-                color: #334b5d;
-            }
-
-            QPushButton#settingsCancelButton:hover {
-                background-color: #d2dde6;
-            }
-
-            QPushButton#settingsSaveButton {
-                background-color: #218b5d;
-                color: white;
-            }
-
-            QPushButton#settingsSaveButton:hover {
-                background-color: #19794f;
-            }
-
-
-            QMessageBox,
-            QInputDialog {
-                background-color: #eef3f8;
-            }
-
-            QMessageBox QLabel,
-            QInputDialog QLabel {
-                color: #213d53;
-                background-color: transparent;
-            }
-
-            QMessageBox QPushButton,
-            QInputDialog QPushButton {
-                background-color: #dce8f1;
-                color: #234f6e;
-                border: 1px solid #c5d6e3;
-                border-radius: 8px;
-                padding: 7px 18px;
-                min-width: 72px;
-                font-size: 14px;
-                font-weight: 700;
-            }
-
-            QMessageBox QPushButton:hover,
-            QInputDialog QPushButton:hover {
-                background-color: #cfdee9;
-            }
-
-            QMessageBox QPushButton:default,
-            QInputDialog QPushButton:default {
-                background-color: #218b5d;
-                color: white;
-                border-color: #218b5d;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)
 
     def _delete_account(self) -> None:
         if self.delete_account_callback is None:
@@ -588,26 +391,8 @@ class SettingsDialog(QDialog):
             self.doctor_name_input.setFocus()
             return
 
-        prefix = self.queue_prefix_input.text().strip().upper()
-        if prefix and (len(prefix) != 1 or not ("A" <= prefix <= "Z")):
-            QMessageBox.warning(
-                self,
-                "Lettera non valida",
-                "Inserisci una sola lettera da A a Z, oppure lascia il campo vuoto.",
-            )
-            self.queue_prefix_input.setFocus()
-            return
-
-        queue_mode = str(
-            self.queue_mode_combo.currentData() or "number"
-        ).strip().lower()
-        if queue_mode not in {"number", "surname"}:
-            queue_mode = "number"
-
         self.saved_settings = {
             "doctor_name": doctor_name,
-            "queue_prefix": prefix,
-            "queue_mode": queue_mode,
             "display_fullscreen": (
                 self.fullscreen_checkbox.isChecked()
             ),

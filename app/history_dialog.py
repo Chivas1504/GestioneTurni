@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 import csv
 from datetime import datetime
 from pathlib import Path
@@ -78,7 +80,7 @@ class HistoryDialog(QDialog):
         )
 
         self.setWindowTitle(
-            "Storico personale"
+            "Storico visite"
         )
         self.setMinimumSize(1050, 620)
         self.resize(1200, 720)
@@ -89,13 +91,13 @@ class HistoryDialog(QDialog):
 
     def _build_interface(self) -> None:
         title_label = QLabel(
-            "STORICO PERSONALE"
+            "Storico visite"
         )
         title_label.setObjectName(
             "historyTitle"
         )
         title_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         self.doctor_label = QLabel(
@@ -105,12 +107,12 @@ class HistoryDialog(QDialog):
             "historyDoctor"
         )
         self.doctor_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
+            Qt.AlignmentFlag.AlignLeft
         )
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(
-            "Cerca per data, ad esempio 05/08/2026"
+            "Cerca per data o cognome del paziente"
         )
         self.search_input.setClearButtonEnabled(
             True
@@ -139,14 +141,16 @@ class HistoryDialog(QDialog):
         )
 
         self.table = QTableWidget()
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setDefaultSectionSize(44)
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
             [
                 "Data",
                 "Inizio",
                 "Fine",
-                "Numero iniziale",
-                "Ultimo numero",
+                "N. iniziale",
+                "Ultimo n.",
                 "Pazienti",
                 "Durata",
                 "Pazienti/ora",
@@ -179,6 +183,7 @@ class HistoryDialog(QDialog):
         )
 
         header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(84)
         header.setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
@@ -198,6 +203,8 @@ class HistoryDialog(QDialog):
         )
 
         self.patient_table = QTableWidget()
+        self.patient_table.setShowGrid(False)
+        self.patient_table.verticalHeader().setDefaultSectionSize(42)
         self.patient_table.setColumnCount(2)
         self.patient_table.setHorizontalHeaderLabels(
             ["Paziente", "Durata"]
@@ -272,12 +279,17 @@ class HistoryDialog(QDialog):
             self.close_button
         )
 
+        self.empty_label = QLabel()
+        self.empty_label.setObjectName("historyEmpty")
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setWordWrap(True)
+        self.empty_label.setMinimumHeight(140)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(
-            30,
-            24,
-            30,
-            26,
+            32,
+            28,
+            32,
+            22,
         )
         main_layout.setSpacing(16)
         main_layout.addWidget(title_label)
@@ -291,6 +303,7 @@ class HistoryDialog(QDialog):
             self.table,
             stretch=1,
         )
+        main_layout.addWidget(self.empty_label, 1)
         main_layout.addWidget(
             self.patient_details_title
         )
@@ -305,124 +318,7 @@ class HistoryDialog(QDialog):
         )
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QLabel#historyTitle {
-                color: #16324a;
-                font-size: 30px;
-                font-weight: 900;
-                letter-spacing: 2px;
-            }
-
-            QLabel#historyDoctor {
-                color: #2c6088;
-                font-size: 20px;
-                font-weight: 700;
-            }
-
-            QLabel#historySummary {
-                color: #60758a;
-                font-size: 15px;
-                font-weight: 700;
-            }
-
-            QLabel#patientDetailsTitle {
-                color: #2c6088;
-                font-size: 15px;
-                font-weight: 900;
-                letter-spacing: 1px;
-            }
-
-            QLabel#patientDetailsHint {
-                color: #60758a;
-                font-size: 13px;
-            }
-
-            QLineEdit {
-                background-color: white;
-                color: #213d53;
-                border: 1px solid #cbd8e3;
-                border-radius: 10px;
-                padding: 8px 12px;
-                font-size: 15px;
-            }
-
-            QLineEdit:focus {
-                border: 2px solid #218b5d;
-            }
-
-            QTableWidget {
-                background-color: white;
-                outline: 0;
-                alternate-background-color: #f4f7fa;
-                color: #213d53;
-                border: 1px solid #d4dfe8;
-                border-radius: 12px;
-                gridline-color: #dfe7ee;
-                font-size: 14px;
-            }
-
-            QTableWidget::item {
-                padding: 10px;
-            }
-
-            QTableWidget::item:selected {
-                background-color: #cde8dc;
-                color: #173e2d;
-                border: none;
-                outline: none;
-            }
-
-            QHeaderView::section {
-                background-color: #16324a;
-                color: white;
-                border: none;
-                padding: 12px 8px;
-                font-size: 14px;
-                font-weight: 800;
-            }
-
-            QPushButton {
-                border: none;
-                border-radius: 11px;
-                padding: 10px 20px;
-                font-size: 15px;
-                font-weight: 700;
-                min-height: 24px;
-            }
-
-            QPushButton#historyPrimaryButton {
-                background-color: #218b5d;
-                color: white;
-            }
-
-            QPushButton#historyPrimaryButton:hover {
-                background-color: #19794f;
-            }
-
-            QPushButton#historySecondaryButton {
-                background-color: #dfe7ee;
-                color: #334b5d;
-            }
-
-            QPushButton#historySecondaryButton:hover {
-                background-color: #d2dde6;
-            }
-
-            QPushButton#historyDangerButton {
-                background-color: #f7e4e2;
-                color: #a43c34;
-            }
-
-            QPushButton#historyDangerButton:hover {
-                background-color: #f1d2cf;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)
 
     def refresh_history(self) -> None:
         self.history = get_history_for_doctor(
@@ -594,6 +490,14 @@ class HistoryDialog(QDialog):
                 )
 
         self.table.setSortingEnabled(True)
+        has_rows = bool(self.filtered_history)
+        self.empty_label.setText("Nessuna visita registrata\nLe sessioni dello studio compariranno qui." if not self.history
+                                 else "Nessun risultato\nProva un’altra data o un altro cognome.")
+        self.empty_label.setVisible(not has_rows)
+        for widget in (self.table, self.patient_table, self.patient_details_title, self.patient_details_hint):
+            widget.setVisible(has_rows)
+        self.export_button.setEnabled(has_rows)
+        self.clear_button.setEnabled(bool(self.history))
 
         if self.table.rowCount() > 0:
             self.table.selectRow(0)
@@ -775,8 +679,8 @@ class HistoryDialog(QDialog):
                         "Medico",
                         "Ora inizio",
                         "Ora fine",
-                        "Numero iniziale",
-                        "Ultimo numero",
+                        "N. iniziale",
+                        "Ultimo n.",
                         "Pazienti serviti",
                         "Durata minuti",
                         "Pazienti per ora",

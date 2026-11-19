@@ -298,6 +298,10 @@ class AppController(QObject):
         self,
         parent=None,
     ) -> None:
+        host = parent.window() if parent is not None else None
+        if host is not None and hasattr(host, "show_page"):
+            host.show_page("dashboard")
+            return
         from app.dashboard_dialog import DashboardDialog
 
         if self.dashboard_window is None:
@@ -323,6 +327,10 @@ class AppController(QObject):
         self,
         parent=None,
     ) -> None:
+        host = parent.window() if parent is not None else None
+        if host is not None and hasattr(host, "show_page"):
+            host.show_page("history")
+            return
         from app.history_dialog import HistoryDialog
 
         if self.history_window is None:
@@ -357,6 +365,10 @@ class AppController(QObject):
         self,
         parent=None,
     ) -> None:
+        host = parent.window() if parent is not None else None
+        if host is not None and hasattr(host, "show_page"):
+            host.show_page("settings")
+            return
         dialog = SettingsDialog(
             current_config=self.config,
             delete_account_callback=self.delete_current_account,
@@ -376,8 +388,19 @@ class AppController(QObject):
         if dialog.saved_settings is None:
             return
 
-        settings = dialog.saved_settings
+        self.apply_settings(dialog.saved_settings)
 
+    def set_queue_prefix(self, prefix: str) -> None:
+        prefix = self._clean_queue_prefix(prefix)
+        if prefix != self.queue_prefix:
+            self.apply_settings({"queue_prefix": prefix})
+
+    def set_queue_mode(self, mode: str) -> None:
+        mode = self._clean_queue_mode(mode)
+        if mode != self.queue_mode:
+            self.apply_settings({"queue_mode": mode})
+
+    def apply_settings(self, settings: dict[str, Any]) -> None:
         new_name = str(
             settings.get(
                 "doctor_name",

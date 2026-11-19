@@ -320,24 +320,24 @@ DISPLAY_HTML = r"""<!doctype html>
     <meta name="theme-color" content="#0b2d47">
     <title>Gestione Turni</title>
     <style>
-        :root { color-scheme: dark; font-family: Arial, Helvetica, sans-serif; }
+        :root { color-scheme: light; font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
         * { box-sizing: border-box; }
         html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         body {
-            background: radial-gradient(circle at top, #154f73 0%, #0b2d47 50%, #061c2d 100%);
-            color: #fff;
+            background: #f4f7f9;
+            color: #183644;
         }
         .screen { height: 100%; display: flex; flex-direction: column; padding: 3vh 4vw 2.5vh; }
         header { display: flex; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-content: space-between; min-height: 11vh; }
-        .brand { font-size: 48px; font-size: clamp(30px, 3.2vw, 58px); font-weight: 900; letter-spacing: .08em; }
-        .subtitle { color: #b9d8ec; font-size: 26px; font-size: clamp(18px, 1.5vw, 30px); text-align: center; }
-        #clock { justify-self: end; font-size: 46px; font-size: clamp(30px, 3vw, 54px); font-weight: 800; font-variant-numeric: tabular-nums; }
+        .brand { font-size: 48px; font-size: clamp(30px, 3.2vw, 58px); font-weight: 600; letter-spacing: .08em; }
+        .subtitle { color: #183644; font-size: 26px; font-size: clamp(18px, 1.5vw, 30px); text-align: center; }
+        #clock { justify-self: end; font-size: 46px; font-size: clamp(30px, 3vw, 54px); font-weight: 600; font-variant-numeric: tabular-nums; }
         /* Layout legacy per browser Smart TV datati.
            Le due schede usano float: niente Grid, Flex o table-cell. */
         #cards {
             display: block;
             width: 100%;
-            height: 76vh;
+            height: 74vh;
             min-height: 0;
             overflow: hidden;
         }
@@ -370,29 +370,29 @@ DISPLAY_HTML = r"""<!doctype html>
             float: right;
         }
         .card {
-            background: #f7fafc;
-            border-radius: 30px;
-            color: #183b56;
+            background: #ffffff;
+            border-radius: 18px;
+            color: #183644;
             padding: 3vh 3vw;
-            box-shadow: 0 22px 50px rgba(0,0,0,.25);
+            box-shadow: 0 5px 18px rgba(24,54,68,.06);
             min-width: 0;
             text-align: center;
             overflow: hidden;
         }
-        .card { border-top: 16px solid #2e7db8; }
-        .doctor-name { width: 100%; font-size: 56px; font-size: clamp(32px, 4vw, 70px); font-weight: 900; text-align: center; overflow-wrap: anywhere; }
-        .called { width: 100%; color: #6c8192; font-size: 22px; font-size: clamp(15px, 1.4vw, 25px); font-weight: 800; letter-spacing: .18em; margin-top: 3vh; text-align: center; }
-        .number { display: block; width: 100%; color: #145f91; font-size: 260px; font-size: clamp(170px, 25vh, 360px); line-height: .95; font-weight: 900; font-variant-numeric: tabular-nums; text-align: center; margin-left: 0; margin-right: 0; }
+        .card { border: 1px solid #dfe7ec; border-top: 7px solid #147d75; }
+        .doctor-name { width: 100%; font-size: 56px; font-size: clamp(32px, 4vw, 70px); font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+        .called { width: 100%; color: #667d89; font-size: 22px; font-size: clamp(15px, 1.4vw, 25px); font-weight: 600; letter-spacing: .18em; margin-top: 3vh; text-align: center; }
+        .number { display: block; width: 100%; color: #147d75; font-size: 260px; font-size: clamp(170px, 25vh, 360px); line-height: .95; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; margin-left: 0; margin-right: 0; }
         .number.surname-value { font-size: 96px; font-size: clamp(48px, 9vw, 150px); line-height: 1.05; overflow-wrap: anywhere; }
-        .status { width: 100%; color: #60758a; font-size: 26px; font-size: clamp(18px, 1.7vw, 30px); font-weight: 600; text-align: center; }
+        .status { width: 100%; color: #526e7a; font-size: 26px; font-size: clamp(18px, 1.7vw, 30px); font-weight: 600; text-align: center; }
         .empty, .connection {
-            flex: 1; margin: 2vh 10vw; border: 1px solid rgba(255,255,255,.18); border-radius: 28px;
+            flex: 1; margin: 2vh 10vw; border: 1px solid #dfe7ec; border-radius: 18px;
             display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-            background: rgba(255,255,255,.06); padding: 5vh 5vw;
+            background: #ffffff; padding: 5vh 5vw;
         }
         .empty h1, .connection h1 { font-size: 64px; font-size: clamp(38px, 5vw, 80px); margin: 0 0 2vh; }
-        .empty p, .connection p { color: #bddbf2; font-size: 32px; font-size: clamp(22px, 2.2vw, 38px); margin: 0; }
-        footer { min-height: 7vh; display: flex; justify-content: center; align-items: flex-end; color: #dcecf8; font-size: 22px; font-size: clamp(16px, 1.5vw, 26px); }
+        .empty p, .connection p { color: #667d89; font-size: 32px; font-size: clamp(22px, 2.2vw, 38px); margin: 0; }
+        footer { min-height: 7vh; display: flex; justify-content: center; align-items: flex-end; color: #526e7a; font-size: 22px; font-size: clamp(16px, 1.5vw, 26px); }
         #technical { opacity: .75; }
         #audioButton {
             position: fixed;
@@ -401,11 +401,11 @@ DISPLAY_HTML = r"""<!doctype html>
             z-index: 20;
             border: 2px solid #ffffff;
             border-radius: 12px;
-            background: #145f91;
+            background: #147d75;
             color: #ffffff;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: "Segoe UI", Arial, Helvetica, sans-serif;
             font-size: 18px;
-            font-weight: 900;
+            font-weight: 600;
             padding: 10px 18px;
             cursor: pointer;
         }
@@ -431,16 +431,20 @@ DISPLAY_HTML = r"""<!doctype html>
         }
 
         /* Layout critico Smart TV: vera tabella HTML, non CSS grid/flex/float. */
-        .legacy-table { width: 100%; height: 76vh; border-collapse: separate; border-spacing: 12px 0; table-layout: fixed; }
+        .legacy-table { width: 100%; height: 74vh; border-collapse: separate; border-spacing: 12px 0; table-layout: fixed; }
         .legacy-cell { width: 50%; height: 100%; vertical-align: top; text-align: center; padding: 0; }
         .legacy-cell .card { width: 100%; height: 100%; display: block; float: none !important; margin: 0; text-align: center; }
         .legacy-number { width: 100%; text-align: center !important; margin-left: auto; margin-right: auto; }
+        header { border-bottom: 1px solid #dfe7ec; margin-bottom: 2vh; }
+        .brand { color: #147d75; font-size: 24px; font-size: clamp(18px, 1.7vw, 32px); letter-spacing: .05em; }
+        .subtitle { font-weight: 600; font-size: 38px; font-size: clamp(28px, 2.7vw, 48px); }
+        #clock { color: #183644; }
     </style>
 </head>
 <body>
 <div class="screen">
     <header>
-        <div class="brand">GESTIONE TURNI</div>
+        <div class="brand">STUDIO MEDICO</div>
         <div class="subtitle">Sala d'attesa</div>
         <div id="clock">--:--</div>
     </header>
@@ -939,8 +943,8 @@ DISPLAY_HTML = r"""<!doctype html>
         if (!activeDoctors.length) {
             content.id = "content";
             content.className = "empty";
-            html = "<h1>In attesa</h1>" +
-                "<p>Premendo Inizia coda sul PC, il display comparirà automaticamente.</p>";
+            html = "<h1>In attesa delle chiamate</h1>" +
+                "<p>Le chiamate compariranno su questo schermo all’apertura degli ambulatori.</p>";
         } else {
             content.id = "cards";
             content.className = "cards " + (activeDoctors.length === 1 ? "one" : "two");

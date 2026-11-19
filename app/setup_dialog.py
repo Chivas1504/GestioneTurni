@@ -151,57 +151,7 @@ class SetupDialog(QDialog):
             self.save_button
         )
 
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QLabel#setupTitle {
-                color: #16324a;
-                font-size: 25px;
-                font-weight: 800;
-            }
-
-            QLabel#setupDescription {
-                color: #60758a;
-                font-size: 15px;
-            }
-
-            QLineEdit,
-            QComboBox {
-                background-color: white;
-                color: #213d53;
-                border: 1px solid #cbd8e3;
-                border-radius: 10px;
-                padding: 8px 12px;
-                font-size: 16px;
-            }
-
-            QComboBox:disabled {
-                background-color: #e5ecf2;
-                color: #566b7d;
-            }
-
-            QLineEdit:focus,
-            QComboBox:focus {
-                border: 2px solid #218b5d;
-            }
-
-            QPushButton#setupSaveButton {
-                background-color: #218b5d;
-                color: white;
-                border: none;
-                border-radius: 12px;
-                font-size: 17px;
-                font-weight: 700;
-            }
-
-            QPushButton#setupSaveButton:hover {
-                background-color: #19794f;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)
 
     def save_and_accept(self) -> None:
         doctor_name = (

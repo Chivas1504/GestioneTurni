@@ -100,8 +100,8 @@ def build(java_home: Path, sdk: Path, cache: Path):
     manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml")
     root = manifest.getroot()
     root.set("package", "it.gestioneturni.tv")
-    root.set("{" + ANDROID + "}versionCode", "1")
-    root.set("{" + ANDROID + "}versionName", "1.0.0")
+    root.set("{" + ANDROID + "}versionCode", "2")
+    root.set("{" + ANDROID + "}versionName", "1.1.0")
     uses_sdk = ET.Element("uses-sdk", {"{" + ANDROID + "}minSdkVersion": "23",
                                       "{" + ANDROID + "}targetSdkVersion": "36"})
     root.insert(0, uses_sdk)
@@ -133,7 +133,7 @@ def build(java_home: Path, sdk: Path, cache: Path):
     run([javac, "--release", "17", "-encoding", "UTF-8", "-cp", cp, "-d", tests, *test_sources])
     print("Test Java Android...", flush=True)
     run([java, "-cp", os.pathsep.join(str(path) for path in [classes, tests, junit, hamcrest]),
-         "org.junit.runner.JUnitCore", "it.gestioneturni.tv.LocalAddressTest"])
+         "org.junit.runner.JUnitCore", "it.gestioneturni.tv.LocalAddressTest", "it.gestioneturni.tv.DiscoveryRulesTest"])
 
     classes_jar = build_dir / "classes.jar"
     with zipfile.ZipFile(classes_jar, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -163,7 +163,7 @@ def build(java_home: Path, sdk: Path, cache: Path):
              "-validity", "10000", "-dname", "CN=Gestione Turni TV, O=Gestione Turni, C=IT",
              "-storetype", "PKCS12", "-keystore", keystore,
              "-storepass:env", "GESTIONE_TV_SIGN_PASSWORD", "-keypass:env", "GESTIONE_TV_SIGN_PASSWORD"], env=signing_env)
-    output = ROOT / "output" / "GestioneTurniTV-1.0.0.apk"
+    output = ROOT / "output" / "GestioneTurniTV-1.1.0.apk"
     output.parent.mkdir(exist_ok=True)
     apksigner = [java, "-jar", tools / "lib/apksigner.jar"]
     run([*apksigner, "sign", "--ks", keystore, "--ks-key-alias", "gestioneturni-tv",

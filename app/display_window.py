@@ -58,6 +58,8 @@ class DoctorDisplayCard(QFrame):
         self.number_label = QLabel(self._formatted_value())
         self.number_label.setObjectName("displayDoctorNumber")
         self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.number_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.number_label.setWordWrap(True)
         self.number_label.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -127,7 +129,7 @@ class DoctorDisplayCard(QFrame):
     def _called_text(self) -> str:
         if self._queue_mode == "surname":
             return "PAZIENTE CHIAMATO"
-        return "NUMERO ATTUALMENTE CHIAMATO"
+        return "NUMERO CHIAMATO"
 
     def _formatted_value(self) -> str:
         if self._queue_mode == "surname":
@@ -152,9 +154,9 @@ class DoctorDisplayCard(QFrame):
 
     def _apply_shadow(self) -> None:
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(34)
-        shadow.setOffset(0, 12)
-        shadow.setColor(QColor(0, 0, 0, 85))
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 5)
+        shadow.setColor(QColor(24, 54, 68, 18))
         self.setGraphicsEffect(shadow)
 
 
@@ -195,7 +197,7 @@ class DisplayWindow(QMainWindow):
             | Qt.AlignmentFlag.AlignVCenter
         )
 
-        self.title_label = QLabel("GESTIONE TURNI")
+        self.title_label = QLabel("Sala d’attesa")
         self.title_label.setObjectName("displayTitle")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -220,13 +222,13 @@ class DisplayWindow(QMainWindow):
         self.empty_container = QFrame()
         self.empty_container.setObjectName("emptyContainer")
 
-        self.empty_title_label = QLabel("Nessuna coda attiva")
+        self.empty_title_label = QLabel("In attesa delle chiamate")
         self.empty_title_label.setObjectName("displayEmptyTitle")
         self.empty_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.empty_message_label = QLabel(
-            "Il servizio riprenderà quando uno studio "
-            "avvierà la propria coda."
+            "Le chiamate compariranno su questo schermo "
+            "all’apertura degli ambulatori."
         )
         self.empty_message_label.setObjectName("displayEmptyMessage")
         self.empty_message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -273,11 +275,11 @@ class DisplayWindow(QMainWindow):
         self.setStyleSheet(
             """
             QMainWindow {
-                background-color: #071a2a;
+                background-color: #f4f7f9;
             }
 
             QWidget#displayCentralWidget {
-                background-color: #071a2a;
+                background-color: #f4f7f9;
             }
 
             QWidget#cardsContainer {
@@ -285,74 +287,75 @@ class DisplayWindow(QMainWindow):
             }
 
             QLabel#displayBrand {
-                color: #9fc6e4;
+                color: #147d75;
                 font-size: 22px;
                 font-weight: 700;
                 letter-spacing: 2px;
             }
 
             QLabel#displayTitle {
-                color: white;
-                font-size: 42px;
-                font-weight: 900;
-                letter-spacing: 4px;
+                color: #183644;
+                font-size: 38px;
+                font-weight: 600;
+                letter-spacing: 0px;
             }
 
             QLabel#displayClock {
-                color: #dcecf8;
+                color: #526e7a;
                 font-size: 32px;
-                font-weight: 800;
+                font-weight: 600;
             }
 
             QFrame#displayHeaderLine,
             QFrame#displayFooterLine {
-                background-color: rgba(255, 255, 255, 35);
+                background-color: #dfe7ec;
                 border: none;
                 min-height: 1px;
                 max-height: 1px;
             }
 
             QFrame#emptyContainer {
-                background-color: rgba(255, 255, 255, 12);
-                border: 1px solid rgba(255, 255, 255, 30);
-                border-radius: 28px;
+                background-color: #ffffff;
+                border: 1px solid #dfe7ec;
+                border-radius: 18px;
             }
 
             QLabel#displayEmptyTitle {
-                color: white;
-                font-size: 48px;
-                font-weight: 800;
+                color: #183644;
+                font-size: 42px;
+                font-weight: 600;
             }
 
             QLabel#displayEmptyMessage {
-                color: #bddbf2;
-                font-size: 26px;
+                color: #667d89;
+                font-size: 24px;
                 font-weight: 500;
             }
 
             QFrame#doctorCard {
-                background-color: #f7fafc;
-                border-radius: 30px;
-                border-top: 16px solid #2e7db8;
+                background-color: #ffffff;
+                border-radius: 18px;
+                border: 1px solid #dfe7ec;
+                border-top: 7px solid #147d75;
             }
 
             QLabel#displayDoctorName {
-                color: #183b56;
-                font-size: 42px;
-                font-weight: 900;
+                color: #183644;
+                font-size: 38px;
+                font-weight: 600;
             }
 
             QLabel#displayCalledLabel {
-                color: #6c8192;
+                color: #667d89;
                 font-size: 17px;
-                font-weight: 800;
+                font-weight: 600;
                 letter-spacing: 2px;
             }
 
             QLabel#displayDoctorNumber {
-                color: #145f91;
+                color: #147d75;
                 font-size: 250px;
-                font-weight: 900;
+                font-weight: 600;
             }
 
             QLabel#displayDoctorNumber[queueMode="surname"] {
@@ -360,13 +363,13 @@ class DisplayWindow(QMainWindow):
             }
 
             QLabel#displayDoctorStatus {
-                color: #60758a;
+                color: #526e7a;
                 font-size: 20px;
                 font-weight: 600;
             }
 
             QLabel#displayFooter {
-                color: #dcecf8;
+                color: #526e7a;
                 font-size: 22px;
                 font-weight: 600;
             }

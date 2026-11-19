@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -64,43 +66,4 @@ class AboutDialog(QDialog):
         layout.addStretch()
         layout.addWidget(close_button)
 
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QLabel#aboutTitle {
-                color: #16324a;
-                font-size: 28px;
-                font-weight: 900;
-            }
-
-            QLabel#aboutVersion {
-                color: #2c6088;
-                font-size: 17px;
-                font-weight: 800;
-            }
-
-            QLabel#aboutDescription,
-            QLabel#aboutAuthor {
-                color: #60758a;
-                font-size: 15px;
-                font-weight: 600;
-            }
-
-            QPushButton#aboutCloseButton {
-                background-color: #218b5d;
-                color: white;
-                border: none;
-                border-radius: 11px;
-                font-size: 16px;
-                font-weight: 800;
-                padding: 10px 20px;
-            }
-
-            QPushButton#aboutCloseButton:hover {
-                background-color: #19794f;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)

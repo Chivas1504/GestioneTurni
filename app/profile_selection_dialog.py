@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.styles import DIALOG_STYLE
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -229,87 +231,4 @@ class ProfileSelectionDialog(QDialog):
         self.accept()
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #eef3f8;
-            }
-
-            QLabel#profileTitle {
-                color: #16324a;
-                font-size: 30px;
-                font-weight: 900;
-                letter-spacing: 2px;
-            }
-
-            QLabel#profileSubtitle {
-                color: #60758a;
-                font-size: 16px;
-                font-weight: 600;
-            }
-
-            QFrame#profileCard {
-                background-color: white;
-                border: 1px solid #d3dfe8;
-                border-radius: 18px;
-            }
-
-            QLabel#profileIcon {
-                color: #2c6088;
-                font-size: 15px;
-                font-weight: 900;
-                letter-spacing: 2px;
-                padding: 10px;
-            }
-
-            QLabel#profileName {
-                color: #183b56;
-                font-size: 23px;
-                font-weight: 900;
-            }
-
-            QLabel#profileConfigured {
-                color: #218b5d;
-                font-size: 14px;
-                font-weight: 800;
-            }
-
-            QLabel#profileNotConfigured {
-                color: #a46a21;
-                font-size: 14px;
-                font-weight: 800;
-            }
-
-            QPushButton#profileOpenButton {
-                background-color: #218b5d;
-                color: white;
-                border: none;
-                border-radius: 12px;
-                font-size: 17px;
-                font-weight: 800;
-                padding: 10px 18px;
-            }
-
-            QPushButton#profileOpenButton:hover {
-                background-color: #19794f;
-            }
-
-            QPushButton#profileOpenButton:pressed {
-                background-color: #126b43;
-            }
-
-            QPushButton#profileCancelButton {
-                background-color: #dfe7ee;
-                color: #334b5d;
-                border: none;
-                border-radius: 10px;
-                font-size: 15px;
-                font-weight: 700;
-                padding: 8px 22px;
-            }
-
-            QPushButton#profileCancelButton:hover {
-                background-color: #d2dde6;
-            }
-            """
-        )
+        self.setStyleSheet(DIALOG_STYLE)

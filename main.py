@@ -127,6 +127,8 @@ def main() -> None:
     migrate_legacy_data()
 
     app = QApplication(sys.argv)
+    from app.styles import apply_application_theme
+    apply_application_theme(app)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setWindowIcon(app_icon())
