@@ -710,11 +710,6 @@ class AppController(QObject):
             self.get_local_number()
         )
 
-        if self.queue_mode == "surname" and self.current_surname:
-            self.current_surname = ""
-            self.config["current_surname"] = ""
-            self.shared_state.update_local(current_surname="")
-
         if new_queue_active:
             start_daily_queue(
                 doctor_id=self.doctor_id,
@@ -723,6 +718,10 @@ class AppController(QObject):
             )
         else:
             self._finish_current_patient()
+            if self.queue_mode == "surname" and self.current_surname:
+                self.current_surname = ""
+                self.config["current_surname"] = ""
+                self.shared_state.update_local(current_surname="")
             end_daily_queue(
                 doctor_id=self.doctor_id,
                 doctor_name=self.doctor_name,
@@ -740,7 +739,7 @@ class AppController(QObject):
             queue_active=self.queue_active
         )
 
-        if self.queue_active and self.queue_mode == "number":
+        if self.queue_active and (self.queue_mode == "number" or self.current_surname):
             self._start_patient_timer(current_number)
 
         if self.history_window is not None:

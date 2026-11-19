@@ -425,6 +425,31 @@ class ControllerTests(unittest.TestCase):
         self.assertGreaterEqual(len(attempts), 2)
         self.assertTrue(controller.get_current_patient_timer()["active"])
 
+    def test_start_queue_preserves_preselected_patient_and_starts_timer(self):
+        from app.window import MainWindow
+        controller = self.make_controller("surname")
+        window = MainWindow(controller)
+        self.addCleanup(window.close)
+        window.doctor_card.surname_input.setText("Rossi")
+        window.doctor_card.surname_button.click()
+        self.assertEqual(controller.get_current_surname(), "Rossi")
+        self.assertFalse(controller.get_current_patient_timer()["active"])
+        base = 1795000000.0
+        with patch("app.controller.time.time", return_value=base):
+            window.queue_button.click()
+        self.assertEqual(controller.get_current_surname(), "Rossi")
+        self.assertEqual(window.doctor_card.surname, "Rossi")
+        self.assertEqual(controller.config["current_surname"], "Rossi")
+        self.assertEqual(controller.shared_state.get_local_doctor()["current_surname"], "Rossi")
+        self.assertEqual(controller.get_current_patient_timer()["ticket"], "Rossi")
+        self.assertEqual(controller.get_current_patient_timer()["started_at"], base)
+        with patch("app.controller.time.time", return_value=base + 10):
+            controller.set_queue_active(True)
+        self.assertEqual(controller.get_current_patient_timer()["started_at"], base)
+        controller.set_queue_active(False)
+        self.assertFalse(controller.get_current_patient_timer()["active"])
+        self.assertEqual(controller.get_current_surname(), "")
+
     def test_surname_timer_waits_for_call_and_restarts_for_same_surname(self):
         controller = self.make_controller("surname")
         base = 1795000000.0
